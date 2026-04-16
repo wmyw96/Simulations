@@ -18,3 +18,15 @@
 
 - Updated the framework note to make the base stack explicitly NumPy-first and to avoid pandas in the framework layer.
 - Added `docs/implementation_status.md` as a quick reference for what is already implemented versus what is still planned.
+
+## 2026-04-15 21:34:00 EDT
+
+- Implemented `PartialLinearModelUniformNoiseDGP` with uniform covariates, uniform additive noise, and optional oracle outputs.
+- Extended `SampledData` so it can carry oracle quantities `pi_x` and `mu_x`.
+- Added a unit test for the new DGP covering shapes, oracle behavior, reproducibility, and zero-noise identities.
+
+## 2026-04-15 21:50:47 EDT
+
+- Created a project-local conda environment at `.conda/simlab`.
+- Installed NumPy in that environment and used it to run the new DGP unit test successfully.
+- Updated the implementation status document with the validated test command and environment location.

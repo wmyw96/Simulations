@@ -17,7 +17,12 @@ class DataGeneratingProcess(ABC):
         self.params = deepcopy(params)
 
     @abstractmethod
-    def sample(self, n: int, seed: int | None = None) -> SampledData:
+    def sample(
+        self,
+        n: int,
+        seed: int | None = None,
+        oracle: bool = False,
+    ) -> SampledData:
         """Sample one dataset of size n."""
 
     @abstractmethod

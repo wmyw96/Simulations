@@ -115,7 +115,6 @@ Current role:
 
 The following modules exist as placeholders for upcoming work:
 
-- `dgp/partial_linear.py`
 - `estimators/dml_nn.py`
 - `estimators/proposed_plm.py`
 - `evaluation/experiment.py`
@@ -126,6 +125,25 @@ The following modules exist as placeholders for upcoming work:
 - `utils/validation.py`
 
 These files currently establish package structure, but do not yet contain substantive implementations.
+
+### Implemented concrete DGP
+
+The following concrete DGP is now implemented:
+
+#### `PartialLinearModelUniformNoiseDGP`
+
+Location:
+
+- `src/simlab/dgp/partial_linear.py`
+
+Current behavior:
+
+- samples covariates `x` from `Unif[-1, 1]^d`,
+- applies callable `func_pi(x)` to build the treatment regression,
+- applies uniform treatment noise with scale `sigma_u`,
+- applies callable `func_mu(x)` to build the outcome regression,
+- applies uniform outcome noise with scale `sigma_eps`,
+- returns `SampledData` with optional oracle fields `pi_x` and `mu_x`.
 
 ### Randomness helpers
 
@@ -154,7 +172,6 @@ Current role:
 
 The following pieces are still planned but not yet implemented:
 
-- `PartialLinearDGP`
 - a simple baseline estimator
 - `DMLNeuralNetEstimator`
 - the paper-specific estimator
@@ -163,22 +180,44 @@ The following pieces are still planned but not yet implemented:
 - result aggregation and persistence utilities
 - unit tests and smoke tests
 - runnable study scripts
+- additional DGP variants beyond `PartialLinearModelUniformNoiseDGP`
+
+## Tests Added So Far
+
+The following unit test now exists:
+
+- `tests/unit/test_partial_linear_dgp.py`
+
+It is designed to check:
+
+- output shapes,
+- oracle versus non-oracle sampling behavior,
+- seed reproducibility,
+- exact zero-noise identities,
+- recovery of the true parameter through `true_parameter()`.
 
 ## Recommended Next Build Order
 
 The next steps I recommend are:
 
-1. Implement `PartialLinearDGP`.
-2. Implement one very simple baseline estimator.
-3. Implement a concrete experiment runner that can execute one small study.
-4. Add a first smoke test for the DGP-estimator-evaluator path.
-5. Add DML and then the paper-specific estimator.
+1. Implement one very simple baseline estimator for the current partial linear DGP.
+2. Implement a concrete experiment runner that can execute one small study.
+3. Add a first smoke test for the DGP-estimator-evaluator path.
+4. Add DML and then the paper-specific estimator.
+5. Add additional DGP variants once the baseline experiment path is stable.
 
 ## Validation Completed So Far
 
-The scaffold has been checked with:
+The scaffold and first concrete DGP have been checked with:
 
 - `python3 -m compileall src`
 - `PYTHONPATH=src python3 -c "import simlab; print(simlab.__all__)"`
+- `PYTHONPATH=src /Users/yihongg/Code/Simulation/.conda/simlab/bin/python -m unittest tests.unit.test_partial_linear_dgp`
 
-This confirms the current package structure imports correctly.
+Environment note:
+
+- a project-local conda environment now exists at `/Users/yihongg/Code/Simulation/.conda/simlab`,
+- NumPy is installed there,
+- the current unit test passes in that environment.
+
+This confirms the current package structure imports correctly and that the first implemented DGP behaves as expected under its unit tests.
