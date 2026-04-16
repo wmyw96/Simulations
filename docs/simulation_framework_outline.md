@@ -103,11 +103,17 @@ Simulation/
 
 `simlab` is only a placeholder name. We can rename it later.
 
+Current implementation note:
+
+- the package hierarchy has now been scaffolded under `src/simlab`,
+- runtime records such as `SampledData`, `EstimateResult`, and `TrialRecord` are dataclasses,
+- DGP `params` and estimator `hyper_parameters` are plain dictionaries.
+
 ## Core Abstractions
 
 The three abstract classes you proposed are the right backbone. I would make two small refinements:
 
-- treat `params` and `hyper_parameters` as typed config objects or plain dictionaries that are stored but not mutated silently,
+- treat `params` and `hyper_parameters` as plain dictionaries copied on construction so callers keep convenience without sharing mutable state by accident,
 - make `predict()` accept data explicitly so the contract is unambiguous.
 
 ### A. DataGeneratingProcess
@@ -258,7 +264,7 @@ To keep the base classes small, add a few lightweight records.
 
 ### DGPConfig
 
-Stores model parameters such as:
+At this stage, DGP configuration should stay as a plain dictionary storing values such as:
 
 - `n`,
 - `p`,
@@ -269,7 +275,7 @@ Stores model parameters such as:
 
 ### EstimatorConfig
 
-Stores:
+At this stage, estimator configuration should also stay as a plain dictionary storing:
 
 - algorithm name,
 - model hyperparameters,
@@ -610,9 +616,9 @@ This means every new component should come with:
 
 ## Practical Notes for Implementation
 
-### Use dataclasses for records
+### Use dataclasses for records, not for top-level configs
 
-Dataclasses make the interfaces readable and reduce dictionary-shaped bugs.
+Dataclasses make the interfaces readable and reduce dictionary-shaped bugs for stable runtime objects such as sampled datasets and fitted estimates. For now, experiment configs should remain dictionaries because we are still exploring the right parameter surface.
 
 ### Keep heavy ML dependencies behind estimator modules
 
@@ -666,15 +672,15 @@ If that path is stable, we can add DML and the proposed estimator with much lowe
 
 These do not block the outline, but we should settle them when we start implementation:
 
-1. Should `params` and `hyper_parameters` be plain dictionaries or typed dataclasses?
-2. What numeric stack do we want for the base package: numpy only, or numpy plus pandas from the start?
-3. What deep-learning backend do we want for neural DML?
-4. Do we want the evaluator to run serially first, or include parallel trial execution from the beginning?
-5. What shape convention do we want for one-dimensional outputs?
+1. What numeric stack do we want for the base package: numpy only, or numpy plus pandas from the start?
+2. What deep-learning backend do we want for neural DML?
+3. Do we want the evaluator to run serially first, or include parallel trial execution from the beginning?
+4. What shape convention do we want for one-dimensional outputs?
 
 My recommendation is:
 
-- dataclasses for internal configs,
+- plain dictionaries for `params` and `hyper_parameters`,
+- dataclasses for `SampledData`, `EstimateResult`, and `TrialRecord`,
 - numpy plus pandas initially,
 - PyTorch only inside the neural estimator module,
 - serial evaluator first,
