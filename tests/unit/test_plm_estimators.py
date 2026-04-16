@@ -1,0 +1,117 @@
+"""Unit tests for partial linear model estimators."""
+
+from __future__ import annotations
+
+import unittest
+
+import numpy as np
+
+from simlab.dgp.partial_linear import PartialLinearModelUniformNoiseDGP
+from simlab.estimators.plm_est import PLMDMLEstimator, PLMOracleAIPWEstimator
+
+
+def zero_mu(x: np.ndarray) -> np.ndarray:
+    return np.zeros((len(x), 1), dtype=np.float32)
+
+
+def linear_pi(x: np.ndarray) -> np.ndarray:
+    return (0.5 * x[:, [0]] - 0.25 * x[:, [1]]).astype(np.float32)
+
+
+class PLMEstimatorTests(unittest.TestCase):
+    def test_oracle_estimator_matches_manual_aipw_formula(self) -> None:
+        dgp = PartialLinearModelUniformNoiseDGP(
+            beta=1.75,
+            func_mu=zero_mu,
+            func_pi=linear_pi,
+            d=2,
+            sigma_u=0.2,
+            sigma_eps=0.1,
+        )
+        sample = dgp.sample(n=10, seed=314, oracle=False)
+        estimator = PLMOracleAIPWEstimator(
+            name="oracle",
+            ground_truth_func_mu=zero_mu,
+            ground_truth_func_pi=linear_pi,
+        )
+
+        result = estimator.fit(sample)
+        x_d1 = sample.observed["x"][:5]
+        t_d1 = sample.observed["t"][:5]
+        y_d1 = sample.observed["y"][:5]
+        mu_d1 = zero_mu(x_d1)
+        pi_d1 = linear_pi(x_d1)
+        manual = np.mean((y_d1 - mu_d1) * (t_d1 - pi_d1)) / np.mean(t_d1 * (t_d1 - pi_d1))
+
+        self.assertAlmostEqual(result.estimate, float(manual), places=6)
+
+    def test_dml_estimator_fit_and_predict_run(self) -> None:
+        dgp = PartialLinearModelUniformNoiseDGP(
+            beta=2.0,
+            func_mu=zero_mu,
+            func_pi=linear_pi,
+            d=2,
+            sigma_u=0.2,
+            sigma_eps=0.1,
+        )
+        sample = dgp.sample(n=12, seed=123, oracle=False)
+        estimator = PLMDMLEstimator(
+            name="dml",
+            hyper_parameters={
+                "L": 2,
+                "N": 8,
+                "lambda_mu": 1e-4,
+                "lambda_pi": 1e-4,
+                "niter": 3,
+                "lr": 1e-3,
+                "batch_size": 4,
+                "seed": 9,
+            },
+            d=2,
+            device="cpu",
+        )
+
+        result = estimator.fit(sample)
+        predictions = estimator.predict(sample.observed["x"])
+
+        self.assertIsNotNone(estimator.est_params)
+        self.assertTrue(np.isfinite(result.estimate))
+        self.assertEqual(predictions["mu"].shape, (12, 1))
+        self.assertEqual(predictions["pi"].shape, (12, 1))
+        self.assertEqual(result.diagnostics["n_d1"], 6)
+        self.assertEqual(result.diagnostics["n_d2"], 6)
+
+    def test_dml_split_puts_extra_observation_in_d2(self) -> None:
+        dgp = PartialLinearModelUniformNoiseDGP(
+            beta=1.0,
+            func_mu=zero_mu,
+            func_pi=linear_pi,
+            d=2,
+            sigma_u=0.2,
+            sigma_eps=0.1,
+        )
+        sample = dgp.sample(n=9, seed=999, oracle=False)
+        estimator = PLMDMLEstimator(
+            name="dml-odd-split",
+            hyper_parameters={
+                "L": 1,
+                "N": 4,
+                "lambda_mu": 0.0,
+                "lambda_pi": 0.0,
+                "niter": 2,
+                "lr": 1e-3,
+                "batch_size": 16,
+                "seed": 7,
+            },
+            d=2,
+            device="cpu",
+        )
+
+        result = estimator.fit(sample)
+
+        self.assertEqual(result.diagnostics["n_d1"], 4)
+        self.assertEqual(result.diagnostics["n_d2"], 5)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -36,3 +36,11 @@
 - Refactored `SampledData` into a generic container with `observed` and `oracle` dictionaries.
 - Removed `metadata` from sampled data so estimators cannot accidentally access truth-related information through the sample object.
 - Updated the partial linear DGP and its unit test to use the generic sampled-data interface.
+
+## 2026-04-15 22:28:00 EDT
+
+- Extracted Eq. (1.2) from `PLM.pdf` and implemented PLM estimators around that exact AIPW formula.
+- Added `src/simlab/estimators/plm_est.py` with the residual ReLU network, the neural DML estimator, and the oracle AIPW estimator.
+- Added estimator unit tests covering the oracle formula, neural fit/predict behavior, and the odd-sample D1/D2 split rule.
+- Installed PyTorch in the project-local conda environment and documented the new estimator implementation in `docs/implementation_status.md`.
+- Removed the old PLM estimator placeholder files so the package now has a single PLM estimator module.

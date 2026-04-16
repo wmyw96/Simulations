@@ -78,8 +78,7 @@ Simulation/
       estimators/
         __init__.py
         base.py
-        dml_nn.py
-        proposed_plm.py
+        plm_est.py
       evaluation/
         __init__.py
         experiment.py
@@ -92,8 +91,7 @@ Simulation/
   tests/
     unit/
       test_partial_linear_dgp.py
-      test_dml_nn_estimator.py
-      test_proposed_plm_estimator.py
+      test_plm_estimators.py
       test_experiment_runner.py
     integration/
       test_plm_study_smoke.py

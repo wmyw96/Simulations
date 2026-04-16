@@ -115,8 +115,6 @@ Current role:
 
 The following modules exist as placeholders for upcoming work:
 
-- `estimators/dml_nn.py`
-- `estimators/proposed_plm.py`
 - `evaluation/experiment.py`
 - `evaluation/metrics.py`
 - `evaluation/results.py`
@@ -144,6 +142,35 @@ Current behavior:
 - applies callable `func_mu(x)` to build the outcome regression,
 - applies uniform outcome noise with scale `sigma_eps`,
 - returns `SampledData` with observed arrays `x`, `t`, `y` and optional oracle arrays `pi_x`, `mu_x`.
+
+### Implemented concrete estimators
+
+The following PLM estimators are now implemented:
+
+#### `PLMDMLEstimator`
+
+Location:
+
+- `src/simlab/estimators/plm_est.py`
+
+Current behavior:
+
+- builds fully connected ReLU networks for `mu` and `pi`,
+- uses batch normalization and residual connections,
+- trains `beta`, `mu`, and `pi` on `D2` with one Adam optimizer,
+- computes the final estimator on `D1` using Eq. (1.2) from the PLM paper.
+
+#### `PLMOracleAIPWEstimator`
+
+Location:
+
+- `src/simlab/estimators/plm_est.py`
+
+Current behavior:
+
+- deep-copies the ground-truth nuisance functions,
+- evaluates them directly on `D1`,
+- computes the oracle AIPW estimator using the same Eq. (1.2).
 
 ### Randomness helpers
 
@@ -173,8 +200,6 @@ Current role:
 The following pieces are still planned but not yet implemented:
 
 - a simple baseline estimator
-- `DMLNeuralNetEstimator`
-- the paper-specific estimator
 - a concrete evaluator or experiment runner
 - metric computation functions
 - result aggregation and persistence utilities
@@ -187,6 +212,7 @@ The following pieces are still planned but not yet implemented:
 The following unit test now exists:
 
 - `tests/unit/test_partial_linear_dgp.py`
+- `tests/unit/test_plm_estimators.py`
 
 It is designed to check:
 
@@ -195,6 +221,12 @@ It is designed to check:
 - seed reproducibility,
 - exact zero-noise identities,
 - recovery of the true parameter through `true_parameter()`.
+
+The estimator unit test is designed to check:
+
+- exact oracle AIPW computation against a manual formula,
+- that the neural DML estimator can fit and predict on PLM data,
+- that the odd-sample split rule places the extra observation in `D2`.
 
 ## Recommended Next Build Order
 
@@ -213,11 +245,13 @@ The scaffold and first concrete DGP have been checked with:
 - `python3 -m compileall src`
 - `PYTHONPATH=src python3 -c "import simlab; print(simlab.__all__)"`
 - `PYTHONPATH=src /Users/yihongg/Code/Simulation/.conda/simlab/bin/python -m unittest tests.unit.test_partial_linear_dgp`
+- `PYTHONPATH=src /Users/yihongg/Code/Simulation/.conda/simlab/bin/python -m unittest tests.unit.test_plm_estimators`
 
 Environment note:
 
 - a project-local conda environment now exists at `/Users/yihongg/Code/Simulation/.conda/simlab`,
 - NumPy is installed there,
-- the current unit test passes in that environment.
+- PyTorch is installed there,
+- the current unit tests pass in that environment.
 
 This confirms the current package structure imports correctly and that the first implemented DGP behaves as expected under its unit tests.
