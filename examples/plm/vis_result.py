@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +44,8 @@ def main() -> None:
     fig_dir = Path(__file__).resolve().parent / "figs"
     fig_dir.mkdir(parents=True, exist_ok=True)
     n_values = list(evaluator.dgp_param_grid["n"])
+    result_path = evaluator.result_path
+    results = json.loads(result_path.read_text())
 
     summaries = {
         n: evaluator.query_results(
@@ -92,6 +96,53 @@ def main() -> None:
         plt.savefig(output_path, dpi=200)
         plt.close()
         print(f"Saved {output_path}")
+
+    trial_points = defaultdict(list)
+    for trial in results["trial_results"]:
+        n = int(trial["dgp_config"]["n"])
+        for estimator_record in trial["estimator_results"]:
+            if estimator_record["estimator_name"] != "dml_nn":
+                continue
+            trial_points[n].append(
+                {
+                    "trial_id": int(trial["trial_id"]),
+                    "mu_pi_product": float(estimator_record["mu_mse"]) * float(estimator_record["pi_mse"]),
+                    "beta_sq_error": float(estimator_record["beta_sq_error"]),
+                }
+            )
+
+    plt.figure(figsize=(6, 4))
+    for n in sorted(trial_points):
+        x_values = [max(point["mu_pi_product"], 1e-16) for point in trial_points[n]]
+        y_values = [max(point["beta_sq_error"], 1e-16) for point in trial_points[n]]
+        plt.scatter(x_values, y_values, label=f"n={n}", alpha=0.8)
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Trial-level mu_mse * pi_mse")
+    plt.ylabel("Trial-level beta_hat squared error")
+    plt.title(f"{args.exp_id}: nuisance-product vs beta error (DML)")
+    plt.legend()
+    plt.tight_layout()
+    combined_scatter_path = fig_dir / f"{args.exp_id}_mu_pi_product_vs_beta_hat_scatter.png"
+    plt.savefig(combined_scatter_path, dpi=200)
+    plt.close()
+    print(f"Saved {combined_scatter_path}")
+
+    for n in sorted(trial_points):
+        plt.figure(figsize=(6, 4))
+        x_values = [max(point["mu_pi_product"], 1e-16) for point in trial_points[n]]
+        y_values = [max(point["beta_sq_error"], 1e-16) for point in trial_points[n]]
+        plt.scatter(x_values, y_values, alpha=0.85)
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.xlabel("Trial-level mu_mse * pi_mse")
+        plt.ylabel("Trial-level beta_hat squared error")
+        plt.title(f"{args.exp_id}: nuisance-product vs beta error (n={n})")
+        plt.tight_layout()
+        per_n_scatter_path = fig_dir / f"{args.exp_id}_n{n}_mu_pi_product_vs_beta_hat_scatter.png"
+        plt.savefig(per_n_scatter_path, dpi=200)
+        plt.close()
+        print(f"Saved {per_n_scatter_path}")
 
 
 if __name__ == "__main__":

@@ -65,3 +65,8 @@
 - Ran experiment `1.1_1` with `10` trials for each sample size and saved the full results to `simulation_results/plm/1.1_1.json`.
 - Generated the separate result figures under `examples/plm/figs`.
 - Wrote a numerical summary and short interpretation of the experiment into `examples/plm/exp_log.md`.
+
+## 2026-04-19 14:38:00 EDT
+
+- Extended `examples/plm/vis_result.py` to generate trial-level scatter plots of `mu_mse * pi_mse` against the final beta squared error for the DML estimator.
+- Regenerated the PLM figures for experiment `1.1_1`, including one combined scatter plot and one per sample size.
