@@ -172,6 +172,41 @@ Current behavior:
 - evaluates them directly on `D1`,
 - computes the oracle AIPW estimator using the same Eq. (1.2).
 
+### Implemented concrete evaluator
+
+The following PLM evaluator is now implemented:
+
+#### `PLMEvaluator`
+
+Location:
+
+- `src/simlab/evaluation/plm_eval.py`
+
+Current behavior:
+
+- expands a grid of DGP-side parameter configurations,
+- resumes from an existing JSON result file if one is already present,
+- runs one trial at a time and saves after every completed trial,
+- feeds oracle data only to estimators marked as oracle methods,
+- computes summary metrics for `beta`, the initial `beta`, `mu`, and `pi`,
+- supports summary queries for a fixed DGP configuration.
+
+### Implemented experiment scripts
+
+The following PLM example files are now implemented:
+
+- `examples/plm/experiment_defs.py`
+- `examples/plm/run_simu.py`
+- `examples/plm/vis_result.py`
+- `examples/plm/exp_log.md`
+
+Current role:
+
+- define experiment families and named nuisance functions,
+- run simulations by experiment id,
+- visualize saved results with separate plots,
+- document experiment settings in a paper-friendly format.
+
 ### Randomness helpers
 
 The following helpers are implemented in `core/randomness.py`:
@@ -200,11 +235,8 @@ Current role:
 The following pieces are still planned but not yet implemented:
 
 - a simple baseline estimator
-- a concrete evaluator or experiment runner
 - metric computation functions
 - result aggregation and persistence utilities
-- unit tests and smoke tests
-- runnable study scripts
 - additional DGP variants beyond `PartialLinearModelUniformNoiseDGP`
 
 ## Tests Added So Far
@@ -213,6 +245,7 @@ The following unit test now exists:
 
 - `tests/unit/test_partial_linear_dgp.py`
 - `tests/unit/test_plm_estimators.py`
+- `tests/unit/test_plm_evaluator.py`
 
 It is designed to check:
 
@@ -227,6 +260,12 @@ The estimator unit test is designed to check:
 - exact oracle AIPW computation against a manual formula,
 - that the neural DML estimator can fit and predict on PLM data,
 - that the odd-sample split rule places the extra observation in `D2`.
+
+The evaluator unit test is designed to check:
+
+- that the evaluator writes and reloads a result file,
+- that rerunning the same experiment resumes without duplicating completed trials,
+- that the summary query aggregates both DML and oracle results.
 
 ## Recommended Next Build Order
 
@@ -246,6 +285,7 @@ The scaffold and first concrete DGP have been checked with:
 - `PYTHONPATH=src python3 -c "import simlab; print(simlab.__all__)"`
 - `PYTHONPATH=src /Users/yihongg/Code/Simulation/.conda/simlab/bin/python -m unittest tests.unit.test_partial_linear_dgp`
 - `PYTHONPATH=src /Users/yihongg/Code/Simulation/.conda/simlab/bin/python -m unittest tests.unit.test_plm_estimators`
+- `PYTHONPATH=src /Users/yihongg/Code/Simulation/.conda/simlab/bin/python -m unittest tests.unit.test_plm_evaluator`
 
 Environment note:
 

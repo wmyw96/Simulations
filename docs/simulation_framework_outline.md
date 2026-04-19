@@ -83,6 +83,7 @@ Simulation/
         __init__.py
         experiment.py
         metrics.py
+        plm_eval.py
         results.py
       utils/
         io.py
@@ -97,6 +98,12 @@ Simulation/
       test_plm_study_smoke.py
   scripts/
     run_plm_study.py
+  examples/
+    plm/
+      experiment_defs.py
+      run_simu.py
+      vis_result.py
+      exp_log.md
 ```
 
 `simlab` is only a placeholder name. We can rename it later.

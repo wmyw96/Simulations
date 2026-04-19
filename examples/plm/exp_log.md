@@ -92,7 +92,7 @@ Method design:
 - Optimizer: Adam
 - Learning rate: `lr = 1e-3`
 - Mini-batch size: `batch_size = 1024`
-- Training epochs: to be specified at run time in the simulation script
+- Training epochs: `niter = 200`
 - Device: CPU by default unless explicitly changed in the simulation configuration
 
 This design uses a relatively wide network so that the nonlinear nuisance functions can be approximated flexibly, while the modest L2 penalties provide a conservative stabilization mechanism during optimization. The oracle method uses the same AIPW correction formula but removes nuisance estimation error entirely.

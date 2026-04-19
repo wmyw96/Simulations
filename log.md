@@ -53,3 +53,9 @@
 
 - Added a draft `examples/plm/exp_log.md` for the first PLM experiment.
 - Rewrote the experiment log structure so the general section describes the DGP class and method semantics, while experiment-specific parameter values live in the detailed results section.
+
+## 2026-04-19 13:05:00 EDT
+
+- Implemented `PLMEvaluator` with JSON-based resume, per-trial saving, PLM metric evaluation, and summary queries.
+- Added the PLM experiment-definition file and example scripts for running simulations and plotting separate result figures.
+- Added a unit test for evaluator resume/query behavior and updated the experiment log with the fixed training-epoch setting.
