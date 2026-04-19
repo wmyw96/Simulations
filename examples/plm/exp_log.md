@@ -406,7 +406,7 @@ Specific data-generating setting:
 - Outcome noise scale: `sigma_eps = 0.5`
 - Training sample sizes: `n in {256, 512, 1024, 2048}`
 - Test sample size: `n_test = 10000`
-- Number of trials per sample size: `30`
+- Number of trials per sample size: `100`
 
 Method design:
 
@@ -423,28 +423,28 @@ Method design:
 
 Design note:
 
-- The evaluator seeds each trial by its trial index. As a result, for a fixed trial id the same realized `beta` value is reused across the different sample sizes. This keeps the cross-`n` comparison aligned at the trial level while still averaging over a broad range of coefficient values across the 30 trials.
+- The evaluator seeds each trial by its trial index. As a result, for a fixed trial id the same realized `beta` value is reused across the different sample sizes. This keeps the cross-`n` comparison aligned at the trial level while still averaging over a broad range of coefficient values across the 100 trials.
 
 ### Results
 
-The experiment was run with `30` independent trials for each sample size in `{256, 512, 1024, 2048}`. Across the 30 seeded trials, the realized coefficients ranged from approximately `-0.4896` to `0.4670`, with an average close to zero (`0.000863`).
+The experiment was run with `100` independent trials for each sample size in `{256, 512, 1024, 2048}`. Across the 100 seeded trials, the realized coefficients ranged from approximately `-0.4896` to `0.4890`, with an average of `-0.0262`.
 
 Average mean squared errors:
 
 | n | Oracle AIPW Beta MSE | DML AIPW Beta MSE | Joint LSE Beta MSE | DML Mu MSE | DML Pi MSE |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 256 | 0.004472 | 0.156432 | 0.024272 | 0.039191 | 0.027801 |
-| 512 | 0.004564 | 0.013441 | 0.023545 | 0.029614 | 0.016700 |
-| 1024 | 0.002332 | 0.006339 | 0.007433 | 0.014810 | 0.008994 |
-| 2048 | 0.000933 | 0.003363 | 0.002195 | 0.007766 | 0.005506 |
+| 256 | 0.012023 | 0.068101 | 0.039185 | 0.047665 | 0.029641 |
+| 512 | 0.005071 | 0.029758 | 0.014251 | 0.023570 | 0.015365 |
+| 1024 | 0.001822 | 0.005341 | 0.005469 | 0.012632 | 0.008637 |
+| 2048 | 0.000941 | 0.003852 | 0.002547 | 0.008322 | 0.005465 |
 
 Main observations:
 
-- The unified graph shows a clear large-sample improvement for all five curves once the sample size reaches `n = 512` and above.
-- The oracle AIPW benchmark remains the strongest line throughout the experiment, with beta MSE falling from about `4.47e-3` at `n = 256` to `9.33e-4` at `n = 2048`.
-- The neural DML AIPW estimator is the noisiest curve at the smallest sample size. Its average beta MSE is `0.156432` at `n = 256`, then drops sharply to `0.013441` at `n = 512`, `0.006339` at `n = 1024`, and `0.003363` at `n = 2048`.
-- The neural-network joint least-squares beta estimate is much more stable than the DML AIPW estimate at `n = 256`, and it then scales down steadily to `0.002195` by `n = 2048`.
-- The nuisance curves also improve smoothly with the sample size. The `mu` error remains above the `pi` error at every `n`, but both decrease approximately linearly on the `log_2` scale over this range.
+- The 100-trial averages give a much smoother picture of the scaling behavior than the earlier 30-trial run. All five curves now decrease monotonically with the sample size.
+- The oracle AIPW benchmark remains the strongest line throughout the experiment, with beta MSE falling from about `1.20e-2` at `n = 256` to `9.41e-4` at `n = 2048`.
+- The neural DML AIPW estimator is still the noisiest beta curve, but its scaling is now much clearer: the average beta MSE decreases from `0.068101` at `n = 256` to `0.029758`, `0.005341`, and `0.003852` as `n` doubles.
+- The neural-network joint least-squares beta estimate is more stable than DML AIPW at the smaller sample sizes and stays competitive at the larger ones, with average beta MSE `0.039185`, `0.014251`, `0.005469`, and `0.002547`.
+- The nuisance curves also improve smoothly with the sample size. The `mu` error remains above the `pi` error at every `n`, but both decrease steadily on the `log_2` scale over this range.
 
 Generated figure:
 

@@ -117,3 +117,9 @@
 - Extended the PLM evaluator to store the realized `beta_true` for each trial so randomized-coefficient experiments can be summarized cleanly.
 - Updated `examples/plm/vis_result.py` with the requested custom color bank and a dedicated unified `log_2(n)` versus `log_2(MSE)` plot for the `1.3` family.
 - Ran Experiment `1.3.1` with `30` trials per sample size, saved the results to `simulation_results/plm/1.3_1.json`, generated `examples/plm/figs/1.3/1.3.1_unified_mse_scaling.png`, and documented the outcome in `examples/plm/exp_log.md`.
+
+## 2026-04-19 21:10:00 EDT
+
+- Continued Experiment `1.3.1` from the saved 30-trial checkpoint to `100` trials per sample size using the evaluator's resume mechanism.
+- Regenerated the unified `1.3.1` scaling figure from the 100-trial averages.
+- Updated the `1.3.1` section of `examples/plm/exp_log.md` so the table and interpretation now reflect the more stable 100-trial run.
