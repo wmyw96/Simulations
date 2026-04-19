@@ -48,3 +48,8 @@
 ## 2026-04-15 23:10:21 EDT
 
 - Updated the local git `origin` remote to `git@github.com:wmyw96/StatsSimulations.git`.
+
+## 2026-04-19 12:22:49 EDT
+
+- Added a draft `examples/plm/exp_log.md` for the first PLM experiment.
+- Rewrote the experiment log structure so the general section describes the DGP class and method semantics, while experiment-specific parameter values live in the detailed results section.
