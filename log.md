@@ -70,3 +70,8 @@
 
 - Extended `examples/plm/vis_result.py` to generate trial-level scatter plots of `mu_mse * pi_mse` against the final beta squared error for the DML estimator.
 - Regenerated the PLM figures for experiment `1.1_1`, including one combined scatter plot and one per sample size.
+
+## 2026-04-19 14:55:00 EDT
+
+- Reorganized `examples/plm/exp_log.md` so the completed baseline run is archived as Experiment `1.1.1`.
+- Added a new Experiment `1.1.2` section describing the next run, which will keep the same sine-sine PLM setting but focus on a product-based nuisance diagnostic built from the fitted nuisance functions themselves.

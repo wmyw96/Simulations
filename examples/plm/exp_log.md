@@ -62,11 +62,13 @@ The summary view aggregates these quantities across repeated trials for each exp
 
 # Experimental results
 
-## 1.1_1
+## 1.1.1
+
+Archived run corresponding to simulation artifact `exp_id = 1.1_1`.
 
 ### Goal
 
-This experiment is intended as a first validation study. Its goal is to verify that the simulation pipeline is working correctly and to assess whether there is a visible performance gap between the neural DML estimator and the oracle benchmark when both are evaluated under the same partial linear model.
+This experiment is intended as a first validation study. Its goal is to verify that the simulation pipeline is working correctly and to assess whether there is a visible performance gap between the neural DML estimator and the oracle benchmark when both are evaluated under the same partial linear model. This archived run focuses on the standard error metrics for `beta`, `mu`, and `pi`; it does not yet provide the product-based nuisance diagnostic that will be treated separately in Experiment `1.1.2`.
 
 ### Setting and design
 
@@ -135,3 +137,45 @@ Suggested presentation items:
 - a separate plot of `mu` mean squared error against `n`,
 - a separate plot of `pi` mean squared error against `n`,
 - a short interpretation discussing whether the oracle benchmark reveals a meaningful gap relative to neural DML.
+
+## 1.1.2
+
+### Goal
+
+This experiment keeps the same one-dimensional partial linear model family but shifts the focus to a nuisance-product diagnostic. The goal is to study how a summary built from the fitted nuisance functions scales with the final beta estimation error across repeated trials, while still comparing neural DML against the oracle benchmark on the standard metrics.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 1`
+- Outcome regression: `mu(x) = sin(2 pi x)`
+- Treatment regression: `pi(x) = sin(2 pi x)`
+- Target coefficient: `beta = 0`
+- Treatment noise scale: `sigma_u = 0.5`
+- Outcome noise scale: `sigma_eps = 0.5`
+- Training sample sizes: `n in {256, 512, 1024, 2048}`
+- Test sample size: `n_test = 10000`
+
+Method design:
+
+- Compared methods: Neural DML and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 1e-4`
+- Treatment-network regularization: `lambda_pi = 1e-4`
+- Optimizer: Adam
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+Additional diagnostic target:
+
+- In addition to the standard summary metrics, this experiment will record and visualize a product-based nuisance summary constructed from the fitted nuisance functions `mu_hat` and `pi_hat` themselves, rather than only from their separate mean squared errors.
+- The corresponding scatter plot will study how that nuisance-product quantity varies with the final beta estimation error across trials.
+
+### Results
+
+Pending. This section will be filled once the `1.1.2` run is completed and the product-based diagnostic is computed from the fitted nuisance estimates.
