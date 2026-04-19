@@ -104,3 +104,9 @@
 - Diagnosed the inconsistent joint-LSE beta behavior in the `beta = 0.5` PLM setting: under the old single-optimizer joint fit, the flexible `mu` network absorbed most of the `beta * pi(X)` signal, leaving the scalar beta update stuck near zero.
 - Reworked `PLMDMLEstimator` so the nuisance networks are trained with Adam while the joint-LSE beta is updated in profiled closed form on `D2` after each epoch.
 - Added deterministic PyTorch seeding when an estimator seed is provided and added a regression test showing the joint-LSE beta tracks a nonzero signal in the sine-sine PLM.
+
+## 2026-04-19 18:35:00 EDT
+
+- Reorganized local visualization outputs into family folders under `examples/plm/figs/`, including `examples/plm/figs/1.1/` and `examples/plm/figs/1.2/`.
+- Updated `examples/plm/vis_result.py` so new figures are saved into `figs/<experiment-family>/` instead of directly into `figs/`.
+- Reran the corrected `beta = 0.5` setting as Experiment `1.2.2`, generated the full figure set in `examples/plm/figs/1.2/`, and updated `examples/plm/exp_log.md` so `1.2.1` is archived as the pre-fix run and `1.2.2` is the corrected reference run.

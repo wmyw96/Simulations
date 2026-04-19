@@ -125,10 +125,10 @@ Main observations:
 
 Generated figures:
 
-- `examples/plm/figs/1.1_1_beta_hat_mse.png`
-- `examples/plm/figs/1.1_1_beta_init_mse.png`
-- `examples/plm/figs/1.1_1_mu_mse.png`
-- `examples/plm/figs/1.1_1_pi_mse.png`
+- `examples/plm/figs/1.1/1.1_1_beta_hat_mse.png`
+- `examples/plm/figs/1.1/1.1_1_beta_init_mse.png`
+- `examples/plm/figs/1.1/1.1_1_mu_mse.png`
+- `examples/plm/figs/1.1/1.1_1_pi_mse.png`
 
 Suggested presentation items:
 
@@ -212,20 +212,20 @@ Main observations:
 
 Generated figures:
 
-- `examples/plm/figs/1.1.2_beta_hat_mse.png`
-- `examples/plm/figs/1.1.2_beta_joint_lse_mse.png`
-- `examples/plm/figs/1.1.2_mu_mse.png`
-- `examples/plm/figs/1.1.2_pi_mse.png`
-- `examples/plm/figs/1.1.2_beta_error_comparison.png`
-- `examples/plm/figs/1.1.2_mu_pi_product_mean_vs_beta_hat_scatter.png`
-- `examples/plm/figs/1.1.2_n256_mu_pi_product_mean_vs_beta_hat_scatter.png`
-- `examples/plm/figs/1.1.2_n512_mu_pi_product_mean_vs_beta_hat_scatter.png`
-- `examples/plm/figs/1.1.2_n1024_mu_pi_product_mean_vs_beta_hat_scatter.png`
-- `examples/plm/figs/1.1.2_n2048_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.1/1.1.2_beta_hat_mse.png`
+- `examples/plm/figs/1.1/1.1.2_beta_joint_lse_mse.png`
+- `examples/plm/figs/1.1/1.1.2_mu_mse.png`
+- `examples/plm/figs/1.1/1.1.2_pi_mse.png`
+- `examples/plm/figs/1.1/1.1.2_beta_error_comparison.png`
+- `examples/plm/figs/1.1/1.1.2_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.1/1.1.2_n256_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.1/1.1.2_n512_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.1/1.1.2_n1024_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.1/1.1.2_n2048_mu_pi_product_mean_vs_beta_hat_scatter.png`
 
 ## 1.2.1
 
-Experiment `1.2.1`, stored in the simulation artifact `1.2_1`.
+Archived pre-fix run for Experiment `1.2.1`, stored in the simulation artifact `1.2_1`.
 
 ### Goal
 
@@ -264,6 +264,8 @@ Method design:
 
 ### Results
 
+This run was produced before the joint-LSE beta training bug was fixed. It is kept for reference, but the corrected rerun in Experiment `1.2.2` should be used for substantive interpretation.
+
 The experiment was run with `10` independent trials for each sample size in `{256, 512, 1024, 2048}`. The table below focuses on the three beta-estimation errors requested for this setting.
 
 | n | DML AIPW Beta MSE | Oracle AIPW Beta MSE | Joint LSE Beta MSE |
@@ -292,8 +294,87 @@ Main observations:
 
 Generated figures:
 
-- `examples/plm/figs/1.2.1_beta_hat_mse.png`
-- `examples/plm/figs/1.2.1_beta_joint_lse_mse.png`
-- `examples/plm/figs/1.2.1_beta_error_comparison.png`
-- `examples/plm/figs/1.2.1_mu_mse.png`
-- `examples/plm/figs/1.2.1_pi_mse.png`
+- `examples/plm/figs/1.2/1.2.1_beta_hat_mse.png`
+- `examples/plm/figs/1.2/1.2.1_beta_joint_lse_mse.png`
+- `examples/plm/figs/1.2/1.2.1_beta_error_comparison.png`
+- `examples/plm/figs/1.2/1.2.1_mu_mse.png`
+- `examples/plm/figs/1.2/1.2.1_pi_mse.png`
+
+## 1.2.2
+
+Corrected rerun for Experiment `1.2.2`, stored in the simulation artifact `1.2_2`.
+
+### Goal
+
+This experiment reruns the `beta = 0.5` sine-sine PLM after fixing the joint least-squares beta training routine. The goal is to re-evaluate how the beta-estimation error scales with the sample size for:
+
+- the neural DML AIPW estimate of `beta`,
+- the oracle AIPW estimate of `beta`,
+- the neural-network joint least-squares estimate of `beta`.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 1`
+- Outcome regression: `mu(x) = sin(2 pi x)`
+- Treatment regression: `pi(x) = sin(2 pi x)`
+- Target coefficient: `beta = 0.5`
+- Treatment noise scale: `sigma_u = 0.5`
+- Outcome noise scale: `sigma_eps = 0.5`
+- Training sample sizes: `n in {256, 512, 1024, 2048}`
+- Test sample size: `n_test = 10000`
+
+Method design:
+
+- Compared methods: Neural DML and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 1e-4`
+- Treatment-network regularization: `lambda_pi = 1e-4`
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+The corrected experiment was run with `10` independent trials for each sample size in `{256, 512, 1024, 2048}`. The table below focuses on the three beta-estimation errors requested for this setting.
+
+| n | DML AIPW Beta MSE | Oracle AIPW Beta MSE | Joint LSE Beta MSE |
+| --- | ---: | ---: | ---: |
+| 256 | 0.02043 | 0.002669 | 0.02687 |
+| 512 | 0.01071 | 0.003089 | 0.01860 |
+| 1024 | 0.002623 | 0.002424 | 0.004766 |
+| 2048 | 0.002177 | 0.000826 | 0.002113 |
+
+For reference, the nuisance-estimation errors for Neural DML were:
+
+| n | Mu MSE | Pi MSE |
+| --- | ---: | ---: |
+| 256 | 0.03756 | 0.02358 |
+| 512 | 0.02983 | 0.01930 |
+| 1024 | 0.01235 | 0.008522 |
+| 2048 | 0.007612 | 0.005096 |
+
+Main observations:
+
+- The corrected joint least-squares beta estimate is now consistent with the intended behavior: its mean squared error decreases sharply with `n`, from `0.02687` at `n = 256` to `0.002113` at `n = 2048`.
+- The neural DML AIPW estimator also improves steadily with `n`, from `0.02043` at `n = 256` to `0.002177` at `n = 2048`.
+- The oracle AIPW benchmark remains the best method overall, but the gap is now much smaller than in the broken `1.2.1` run. By `n = 1024` and `n = 2048`, the corrected DML and joint-LSE beta errors are both close to the oracle benchmark.
+- Compared with the pre-fix run `1.2.1`, the corrected `1.2.2` results resolve the earlier inconsistency: the joint-LSE beta estimate no longer stays flat around an error level near `0.2`, and the DML AIPW curve no longer shows the pathological spike at `n = 512`.
+
+Generated figures:
+
+- `examples/plm/figs/1.2/1.2.2_beta_hat_mse.png`
+- `examples/plm/figs/1.2/1.2.2_beta_joint_lse_mse.png`
+- `examples/plm/figs/1.2/1.2.2_beta_error_comparison.png`
+- `examples/plm/figs/1.2/1.2.2_mu_mse.png`
+- `examples/plm/figs/1.2/1.2.2_pi_mse.png`
+- `examples/plm/figs/1.2/1.2.2_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.2/1.2.2_n256_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.2/1.2.2_n512_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.2/1.2.2_n1024_mu_pi_product_mean_vs_beta_hat_scatter.png`
+- `examples/plm/figs/1.2/1.2.2_n2048_mu_pi_product_mean_vs_beta_hat_scatter.png`

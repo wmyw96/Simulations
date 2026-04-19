@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     _, display_exp_id = normalize_exp_id(args.exp_id)
+    family_display_id = display_exp_id.rsplit(".", 1)[0]
     evaluator = build_evaluator_from_exp_id(exp_id=args.exp_id, n_trials=1)
     metric_specs = {
         "beta_hat_mse": {
@@ -54,7 +55,8 @@ def main() -> None:
     except ImportError as error:
         raise SystemExit("matplotlib is required to visualize results.") from error
 
-    fig_dir = Path(__file__).resolve().parent / "figs"
+    fig_root = Path(__file__).resolve().parent / "figs"
+    fig_dir = fig_root / family_display_id
     fig_dir.mkdir(parents=True, exist_ok=True)
     n_values = list(evaluator.dgp_param_grid["n"])
     result_path = evaluator.result_path
