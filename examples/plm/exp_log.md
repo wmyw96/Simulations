@@ -962,3 +962,79 @@ Main observations:
 Generated figures:
 
 - `examples/plm/figs/1.5/1.5.2_pi_complexity_mse_comparison.png`
+
+## 1.5.3
+
+Experiment `1.5.3`, stored in the simulation artifact `1.5_3`.
+
+### Goal
+
+This experiment corrects the `1.5.2` specification. The treatment regression is now
+
+```text
+pi(x) = sign(sin(2 pi x)) * |sin(k pi x)|,
+```
+
+for `k in {2, 4, 8}`. The goal is again to test whether increasingly hard treatment-regression estimation translates into larger beta error, but now under the absolute-value version you intended.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 1`
+- Outcome regression: `mu(x) = sin(2 pi x)`
+- Treatment regression candidates:
+  - `pi(x) = sign(sin(2 pi x)) * |sin(2 pi x)|`
+  - `pi(x) = sign(sin(2 pi x)) * |sin(4 pi x)|`
+  - `pi(x) = sign(sin(2 pi x)) * |sin(8 pi x)|`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = 0.5`
+- Outcome noise scale: `sigma_eps = 0.5`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `30`
+
+Method design:
+
+- Compared methods: Neural DML and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+Visualization design:
+
+- The single summary figure reports the average mean squared error for:
+  - Oracle AIPW beta,
+  - DML AIPW beta,
+  - DML `mu`,
+  - DML `pi`.
+- The horizontal axis indexes the three corrected treatment-regression choices, and the vertical axis is logarithmic.
+
+### Results
+
+Average MSE over `30` trials:
+
+| pi(x) | Oracle AIPW beta MSE | DML AIPW beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: |
+| `sign(sin(2 pi x)) * |sin(2 pi x)|` | 0.002332 | 0.187253 | 0.012780 | 0.009745 |
+| `sign(sin(2 pi x)) * |sin(4 pi x)|` | 0.002194 | 0.005391 | 0.009786 | 0.027950 |
+| `sign(sin(2 pi x)) * |sin(8 pi x)|` | 0.002222 | 0.003443 | 0.008389 | 0.083315 |
+
+Main observations:
+
+- The first case reduces exactly to `sin(2 pi x)`, so its numbers match the `1.5.1` baseline. That provides a useful sanity check that the corrected function family is wired properly.
+- The treatment nuisance error again grows sharply with oscillation frequency: DML `pi` MSE goes from `0.009745` to `0.027950` to `0.083315`.
+- Even with that increase in treatment-nuisance difficulty, the DML beta error does not increase with it. Instead it drops from `0.187253` in the baseline case to `0.005391` and then `0.003443`.
+- The oracle AIPW beta benchmark stays essentially flat across the three settings, so the main change is still happening in nuisance learning rather than in the oracle target itself.
+- Taken together, the corrected absolute-value family leads to the same qualitative conclusion as the previous `1.5` variants: larger treatment-regression error by itself is not enough to explain the final DML beta error.
+
+Generated figures:
+
+- `examples/plm/figs/1.5/1.5.3_pi_complexity_mse_comparison.png`

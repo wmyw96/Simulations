@@ -159,6 +159,28 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertTrue(evaluator_15_2.estimators[0]["accepts_trial_seed"])
         self.assertTrue(evaluator_15_2.estimators[1]["accepts_dgp_config"])
 
+        evaluator_15_3 = build_evaluator_from_exp_id(
+            exp_id="1.5.3",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_15_3.exp_id, "1.5_3")
+        self.assertEqual(evaluator_15_3.result_path.name, "1.5_3.json")
+        self.assertEqual(
+            evaluator_15_3.dgp_param_grid["func_pi_name"],
+            [
+                "sign_sin_2pi_times_abs_sin_2pi_first_coordinate",
+                "sign_sin_2pi_times_abs_sin_4pi_first_coordinate",
+                "sign_sin_2pi_times_abs_sin_8pi_first_coordinate",
+            ],
+        )
+        self.assertEqual(evaluator_15_3.dgp_param_grid["n"], [1024])
+        self.assertEqual(evaluator_15_3.estimators[0]["method_config"]["lambda_mu"], 2e-5)
+        self.assertEqual(evaluator_15_3.estimators[0]["method_config"]["lambda_pi"], 2e-5)
+        self.assertTrue(evaluator_15_3.estimators[0]["accepts_trial_seed"])
+        self.assertTrue(evaluator_15_3.estimators[1]["accepts_dgp_config"])
+
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result_root = Path(temp_dir) / "simulation_results"

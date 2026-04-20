@@ -183,3 +183,9 @@
 - Added Experiment `1.5.2`, which replaces the treatment-regression family with `sign(sin(2 pi x)) * sin(k pi x)` for `k in {2, 4, 8}` while keeping `n = 1024` and `lambda_mu = lambda_pi = 2e-5`.
 - Generalized the `1.5` plotting helper to pull the treatment-regression labels from the experiment definition, so the figure stays aligned with whichever `pi` family a specific exact id uses.
 - Ran `1.5.2` with `30` trials per signed treatment-regression choice, generated `examples/plm/figs/1.5/1.5.2_pi_complexity_mse_comparison.png`, and added the new results section to `examples/plm/exp_log.md`.
+
+## 2026-04-20 15:05:00 EDT
+
+- Added Experiment `1.5.3`, correcting the `1.5.2` family to use `sign(sin(2 pi x)) * |sin(k pi x)|` for `k in {2, 4, 8}` while keeping `n = 1024` and `lambda_mu = lambda_pi = 2e-5`.
+- Extended the function registry and experiment-id tests for the corrected absolute-value family and reran the `1.5` comparison with `30` trials per treatment-regression choice.
+- Generated `examples/plm/figs/1.5/1.5.3_pi_complexity_mse_comparison.png` and documented the corrected results in `examples/plm/exp_log.md`.
