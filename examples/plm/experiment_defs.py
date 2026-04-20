@@ -207,6 +207,49 @@ def isolated_d4_pi_4(x: np.ndarray) -> np.ndarray:
     return 0.98 * mu + np.sqrt(1.0 - 0.98**2) * aux
 
 
+def easy_mu_sin_pi_x1_plus_cos_pi_x2(x: np.ndarray) -> np.ndarray:
+    """Return a relatively easy outcome regression on the first two coordinates."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    return np.sin(np.pi * x1) + np.cos(np.pi * x2)
+
+
+def increasing_beta_pi_1(x: np.ndarray) -> np.ndarray:
+    """Smooth low-amplitude perturbation of the easy mu design."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    mu = easy_mu_sin_pi_x1_plus_cos_pi_x2(x)
+    aux = (np.sin(2.0 * np.pi * x1) + np.cos(2.0 * np.pi * x2)) / np.sqrt(2.0)
+    return mu + 0.05 * aux
+
+
+def increasing_beta_pi_2(x: np.ndarray) -> np.ndarray:
+    """Add a moderate-amplitude rough interaction on the same coordinates."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    mu = easy_mu_sin_pi_x1_plus_cos_pi_x2(x)
+    aux = np.sign(np.sin(8.0 * np.pi * x1)) * np.sign(np.cos(8.0 * np.pi * x2))
+    return mu + 0.18 * aux
+
+
+def increasing_beta_pi_3(x: np.ndarray) -> np.ndarray:
+    """Increase the amplitude of the rough interaction to raise pi error further."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    mu = easy_mu_sin_pi_x1_plus_cos_pi_x2(x)
+    aux = np.sign(np.sin(8.0 * np.pi * x1)) * np.sign(np.cos(8.0 * np.pi * x2))
+    return mu + 0.20 * aux
+
+
+def increasing_beta_pi_4(x: np.ndarray) -> np.ndarray:
+    """Use the same rough interaction with the largest amplitude in the family."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    mu = easy_mu_sin_pi_x1_plus_cos_pi_x2(x)
+    aux = np.sign(np.sin(8.0 * np.pi * x1)) * np.sign(np.cos(8.0 * np.pi * x2))
+    return mu + 0.25 * aux
+
+
 FUNCTION_REGISTRY = {
     "sin_2pi_first_coordinate": sin_2pi_first_coordinate,
     "sin_4pi_first_coordinate": sin_4pi_first_coordinate,
@@ -233,6 +276,11 @@ FUNCTION_REGISTRY = {
     "isolated_d4_pi_2": isolated_d4_pi_2,
     "isolated_d4_pi_3": isolated_d4_pi_3,
     "isolated_d4_pi_4": isolated_d4_pi_4,
+    "easy_mu_sin_pi_x1_plus_cos_pi_x2": easy_mu_sin_pi_x1_plus_cos_pi_x2,
+    "increasing_beta_pi_1": increasing_beta_pi_1,
+    "increasing_beta_pi_2": increasing_beta_pi_2,
+    "increasing_beta_pi_3": increasing_beta_pi_3,
+    "increasing_beta_pi_4": increasing_beta_pi_4,
 }
 
 FUNCTION_LABELS = {
@@ -261,6 +309,11 @@ FUNCTION_LABELS = {
     "isolated_d4_pi_2": r"$0.98\,\sin(2\pi x_1)+\sqrt{1-0.98^2}\frac{\sin(8\pi x_2)+\sin(8\pi x_3)+\sin(8\pi x_4)}{\sqrt{3}}$",
     "isolated_d4_pi_3": r"$0.98\,\sin(2\pi x_1)+\sqrt{1-0.98^2}\operatorname{sign}(\prod_{j=2}^4\sin(8\pi x_j))$",
     "isolated_d4_pi_4": r"$0.98\,\sin(2\pi x_1)+\sqrt{1-0.98^2}\operatorname{sign}(\prod_{j=2}^4\sin(32\pi x_j))$",
+    "easy_mu_sin_pi_x1_plus_cos_pi_x2": r"$\sin(\pi x_1)+\cos(\pi x_2)$",
+    "increasing_beta_pi_1": r"$\mu(x)+0.05\frac{\sin(2\pi x_1)+\cos(2\pi x_2)}{\sqrt{2}}$",
+    "increasing_beta_pi_2": r"$\mu(x)+0.18\,\operatorname{sign}(\sin(8\pi x_1))\operatorname{sign}(\cos(8\pi x_2))$",
+    "increasing_beta_pi_3": r"$\mu(x)+0.20\,\operatorname{sign}(\sin(8\pi x_1))\operatorname{sign}(\cos(8\pi x_2))$",
+    "increasing_beta_pi_4": r"$\mu(x)+0.25\,\operatorname{sign}(\sin(8\pi x_1))\operatorname{sign}(\cos(8\pi x_2))$",
 }
 
 
@@ -1305,6 +1358,82 @@ def build_experiment_1_5_7(
     )
 
 
+def build_experiment_1_5_8(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build the easy-mu family where pi and beta error rise together in pilot runs."""
+    dgp_param_grid = {
+        "d": 4,
+        "func_mu_name": "easy_mu_sin_pi_x1_plus_cos_pi_x2",
+        "func_pi_name": [
+            "increasing_beta_pi_1",
+            "increasing_beta_pi_2",
+            "increasing_beta_pi_3",
+            "increasing_beta_pi_4",
+        ],
+        "beta_sampler_name": "uniform",
+        "beta_low": -0.5,
+        "beta_high": 0.5,
+        "sigma_u": 0.5,
+        "sigma_eps": 0.5,
+        "n_test": 10000,
+        "n": [1024],
+    }
+
+    dml_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 1024,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": 4,
+    }
+
+    oracle_method_config = {
+        "func_mu_name": "easy_mu_sin_pi_x1_plus_cos_pi_x2",
+        "func_pi_name": None,
+        "follows_dgp_pi": True,
+    }
+
+    estimators = [
+        {
+            "name": "dml_nn",
+            "is_oracle": False,
+            "factory_name": "make_plm_dml_estimator",
+            "method_config": deepcopy(dml_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_dml_factory(dml_method_config),
+        },
+        {
+            "name": "oracle_aipw",
+            "is_oracle": True,
+            "factory_name": "make_plm_oracle_estimator",
+            "method_config": deepcopy(oracle_method_config),
+            "accepts_dgp_config": True,
+            "factory": _make_oracle_factory(oracle_method_config),
+        },
+    ]
+
+    return PLMEvaluator(
+        exp_name=EXPERIMENT_NAME,
+        exp_id=exp_id,
+        dgp_generator=plm_uniform_noise_dgp_generator,
+        dgp_param_grid=dgp_param_grid,
+        estimators=estimators,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        result_root=result_root,
+    )
+
+
 EXPERIMENT_FAMILY_BUILDERS = {
     "1.1": build_experiment_1_1,
     "1.2": build_experiment_1_2,
@@ -1331,6 +1460,7 @@ EXPERIMENT_ID_BUILDERS = {
     "1.5_5": build_experiment_1_5_5,
     "1.5_6": build_experiment_1_5_6,
     "1.5_7": build_experiment_1_5_7,
+    "1.5_8": build_experiment_1_5_8,
 }
 
 

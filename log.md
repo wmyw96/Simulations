@@ -221,3 +221,9 @@
 - Added Experiment `1.5.7`, which keeps `mu(x) = sin(2 pi x_1)` structurally simple in `d = 4` while making `pi(x)` depend on `x_2`, `x_3`, and `x_4` through progressively rougher smooth and discontinuous components.
 - Extended the function registry, exact-id evaluator tests, and figure labels for the new isolated-`pi` family, then ran `1.5.7` with `30` trials and generated `examples/plm/figs/1.5/1.5.7_pi_complexity_mse_comparison.png`.
 - Documented that `1.5.7` does make the treatment nuisance harder in a cleaner way, but the fitted `mu` error remains large in `d = 4`, so the experiment still does not cleanly isolate the effect of treatment-regression difficulty on beta estimation.
+
+## 2026-04-20 21:35:00 EDT
+
+- Added Experiment `1.5.8`, using the easier outcome regression `mu(x) = sin(pi x_1) + cos(pi x_2)` and a four-level treatment-regression family that perturbs `mu(x)` by increasingly rough same-coordinate components.
+- Extended the function registry and exact-id evaluator tests for `1.5.8`, ran the full `30`-trial experiment, and generated `examples/plm/figs/1.5/1.5.8_pi_complexity_mse_comparison.png`.
+- Documented that `1.5.8` is the closest match so far to the requested design: the first three settings show both DML `pi` MSE and DML beta MSE increasing together, while the fourth setting still breaks the monotone beta trend.

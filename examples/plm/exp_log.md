@@ -1286,3 +1286,65 @@ Main observations:
 Generated figures:
 
 - `examples/plm/figs/1.5/1.5.7_pi_complexity_mse_comparison.png`
+
+## 1.5.8
+
+Experiment `1.5.8`, stored in the simulation artifact `1.5_8`.
+
+### Goal
+
+This experiment keeps `mu(x)` relatively easy, as requested, using `mu(x) = sin(pi x_1) + cos(pi x_2)`. The design goal is to find a treatment-regression family for which both the DML treatment-regression MSE and the DML beta-estimation MSE increase together.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 4`
+- Outcome regression: `mu(x) = sin(pi x_1) + cos(pi x_2)`
+- Treatment regression candidates:
+  - `pi_1(x) = mu(x) + 0.05 * (sin(2 pi x_1) + cos(2 pi x_2)) / sqrt(2)`
+  - `pi_2(x) = mu(x) + 0.18 * sign(sin(8 pi x_1)) * sign(cos(8 pi x_2))`
+  - `pi_3(x) = mu(x) + 0.20 * sign(sin(8 pi x_1)) * sign(cos(8 pi x_2))`
+  - `pi_4(x) = mu(x) + 0.25 * sign(sin(8 pi x_1)) * sign(cos(8 pi x_2))`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = 0.5`
+- Outcome noise scale: `sigma_eps = 0.5`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `30`
+
+Method design:
+
+- Compared methods: Neural DML and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average MSE over `30` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.002802 | 0.044891 | 0.267990 | 0.348808 | 0.055569 |
+| `pi_2` | 0.002902 | 0.045978 | 0.184998 | 0.263691 | 0.113965 |
+| `pi_3` | 0.002919 | 0.082161 | 0.168694 | 0.248940 | 0.128094 |
+| `pi_4` | 0.002963 | 0.056878 | 0.135596 | 0.214755 | 0.165524 |
+
+Main observations:
+
+- This is the first family in the `1.5` sequence where the intended pattern shows up clearly for the first three settings. Both DML `pi` MSE and DML beta MSE increase together from `pi_1` to `pi_3`: `0.055569 -> 0.113965 -> 0.128094` for `pi`, and `0.044891 -> 0.045978 -> 0.082161` for beta.
+- The fourth setting increases the treatment-regression error further, but the DML beta error drops back from `0.082161` to `0.056878`. So the family is only partially successful at the full four-point level.
+- The true `mu(x)` is indeed simpler than in the earlier four-dimensional experiments, but the fitted DML `mu` error is still not small. It decreases steadily across the family, which suggests that part of the improvement in beta estimation may still be coming from easier nuisance fitting on the outcome side, not only from the treatment side.
+- The practical conclusion is that `1.5.8` is the closest match so far to the requested design. If we want a clean monotone experiment, the first three settings of `1.5.8` are the most defensible subset.
+
+Generated figures:
+
+- `examples/plm/figs/1.5/1.5.8_pi_complexity_mse_comparison.png`

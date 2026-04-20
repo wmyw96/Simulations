@@ -278,6 +278,35 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertTrue(evaluator_15_7.estimators[0]["accepts_trial_seed"])
         self.assertTrue(evaluator_15_7.estimators[1]["accepts_dgp_config"])
 
+        evaluator_15_8 = build_evaluator_from_exp_id(
+            exp_id="1.5.8",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_15_8.exp_id, "1.5_8")
+        self.assertEqual(evaluator_15_8.result_path.name, "1.5_8.json")
+        self.assertEqual(evaluator_15_8.dgp_param_grid["d"], 4)
+        self.assertEqual(
+            evaluator_15_8.dgp_param_grid["func_mu_name"],
+            "easy_mu_sin_pi_x1_plus_cos_pi_x2",
+        )
+        self.assertEqual(
+            evaluator_15_8.dgp_param_grid["func_pi_name"],
+            [
+                "increasing_beta_pi_1",
+                "increasing_beta_pi_2",
+                "increasing_beta_pi_3",
+                "increasing_beta_pi_4",
+            ],
+        )
+        self.assertEqual(evaluator_15_8.dgp_param_grid["n"], [1024])
+        self.assertEqual(evaluator_15_8.estimators[0]["method_config"]["d"], 4)
+        self.assertEqual(evaluator_15_8.estimators[0]["method_config"]["lambda_mu"], 2e-5)
+        self.assertEqual(evaluator_15_8.estimators[0]["method_config"]["lambda_pi"], 2e-5)
+        self.assertTrue(evaluator_15_8.estimators[0]["accepts_trial_seed"])
+        self.assertTrue(evaluator_15_8.estimators[1]["accepts_dgp_config"])
+
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result_root = Path(temp_dir) / "simulation_results"
