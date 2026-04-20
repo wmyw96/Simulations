@@ -1102,3 +1102,65 @@ Main observations:
 Generated figures:
 
 - `examples/plm/figs/1.5/1.5.4_pi_complexity_mse_comparison.png`
+
+## 1.5.5
+
+Experiment `1.5.5`, stored in the simulation artifact `1.5_5`.
+
+### Goal
+
+This experiment revisits the `pi`-complexity question with a more controlled family. The key design change is to keep the overlap between `pi(x)` and `mu(x) = sin(2 pi x)` very high and nearly fixed, while increasing the roughness of the treatment regression in a clearer progression. The main purpose is to make the treatment nuisance genuinely harder to estimate in a monotone way before asking whether the beta estimators degrade with it.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 1`
+- Outcome regression: `mu(x) = sin(2 pi x)`
+- Treatment regression candidates:
+  - `pi_1(x) = 0.98 * mu(x) + sqrt(1 - 0.98^2) * sqrt(2) * cos(2 pi x)`
+  - `pi_2(x) = 0.98 * mu(x) + sqrt(1 - 0.98^2) * sqrt(2) * cos(8 pi x)`
+  - `pi_3(x) = 0.98 * mu(x) + sqrt(1 - 0.98^2) * sign(sin(8 pi x))`
+  - `pi_4(x) = 0.98 * mu(x) + sqrt(1 - 0.98^2) * sign(sin(64 pi x))`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = 0.5`
+- Outcome noise scale: `sigma_eps = 0.5`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `30`
+
+Method design:
+
+- Compared methods: Neural DML and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average MSE over `30` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.002319 | 0.002882 | 0.005373 | 0.011451 | 0.008196 |
+| `pi_2` | 0.002379 | 0.023270 | 0.005264 | 0.011744 | 0.013576 |
+| `pi_3` | 0.002250 | 0.005908 | 0.006684 | 0.011754 | 0.018740 |
+| `pi_4` | 0.002312 | 0.003795 | 0.002493 | 0.009036 | 0.049803 |
+
+Main observations:
+
+- This family succeeds at the first design goal: the treatment nuisance really does get harder in a clean progression. The DML `pi` MSE increases monotonically across the four candidates: `0.008196 -> 0.013576 -> 0.018740 -> 0.049803`.
+- The outcome nuisance does not change much across the first three candidates, which is exactly what we wanted from a cleaner stress test. The DML `mu` MSE stays near `0.0115` before improving slightly in the roughest case.
+- The beta estimators still do not degrade monotonically with that nuisance difficulty. The DML AIPW beta error is worst for `pi_2`, improves for `pi_3`, and improves again for `pi_4`; the joint LSE beta error is fairly flat through `pi_3` and then actually drops for `pi_4`.
+- So `1.5.5` is a better experiment than the earlier families in one important sense: it clearly isolates a monotone increase in treatment-regression difficulty. What it shows is that, even after doing that, beta performance is still driven by more than just the standalone MSE of `pi`. The precise geometry of how the treatment regression interacts with `mu(x)` and the orthogonal score still matters.
+
+Generated figures:
+
+- `examples/plm/figs/1.5/1.5.5_pi_complexity_mse_comparison.png`

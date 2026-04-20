@@ -203,3 +203,9 @@
 
 - Added Experiment `1.5.4` using the new four-level progressive `pi` family at `n = 1024` with `lambda_mu = lambda_pi = 2e-5`, and ran it with `30` trials per treatment-regression choice.
 - Generated `examples/plm/figs/1.5/1.5.4_pi_complexity_mse_comparison.png` and documented the result that this family did not produce the desired monotone degradation of DML and joint LSE beta performance.
+
+## 2026-04-20 18:35:00 EDT
+
+- Added Experiment `1.5.5`, a fixed-overlap `pi` family that keeps the treatment regression highly aligned with `mu(x) = sin(2 pi x)` while increasing its roughness from smooth cosine to high-frequency discontinuous sign waves.
+- Extended the exact-id registry/tests for `1.5.5`, ran the new experiment with `30` trials per treatment-regression choice, and generated `examples/plm/figs/1.5/1.5.5_pi_complexity_mse_comparison.png`.
+- Documented that `1.5.5` finally makes DML `pi` error increase monotonically across the four candidates, even though the DML and joint-LSE beta errors still do not degrade monotonically with that nuisance difficulty.
