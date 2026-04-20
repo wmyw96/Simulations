@@ -177,3 +177,9 @@
 - Added Experiment `1.5.1`, which fixes `n = 1024`, `lambda_mu = lambda_pi = 2e-5`, and compares three treatment regressions `sin(2 pi x)`, `sin(4 pi x)`, and `sin(8 pi x)` under the random-beta PLM design.
 - Extended the evaluator/experiment factory interface so oracle estimators can follow the current DGP nuisance function when a nuisance function name varies across the parameter grid.
 - Added the `1.5.1` visualization, ran the experiment with `30` trials per `pi` choice, generated `examples/plm/figs/1.5/1.5.1_pi_complexity_mse_comparison.png`, and documented the results in `examples/plm/exp_log.md`.
+
+## 2026-04-20 14:10:00 EDT
+
+- Added Experiment `1.5.2`, which replaces the treatment-regression family with `sign(sin(2 pi x)) * sin(k pi x)` for `k in {2, 4, 8}` while keeping `n = 1024` and `lambda_mu = lambda_pi = 2e-5`.
+- Generalized the `1.5` plotting helper to pull the treatment-regression labels from the experiment definition, so the figure stays aligned with whichever `pi` family a specific exact id uses.
+- Ran `1.5.2` with `30` trials per signed treatment-regression choice, generated `examples/plm/figs/1.5/1.5.2_pi_complexity_mse_comparison.png`, and added the new results section to `examples/plm/exp_log.md`.

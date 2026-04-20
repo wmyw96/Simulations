@@ -17,7 +17,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from experiment_defs import build_evaluator_from_exp_id, normalize_exp_id
+from experiment_defs import FUNCTION_LABELS, build_evaluator_from_exp_id, normalize_exp_id
 
 COLOR_BANK = {
     "myred": "#ae1908",
@@ -637,9 +637,8 @@ def _plot_family_15_pi_complexity(
     }
     fixed_dgp_config["n"] = int(evaluator.dgp_param_grid["n"][0])
     pi_specs = [
-        ("sin_2pi_first_coordinate", r"$\sin(2\pi x)$"),
-        ("sin_4pi_first_coordinate", r"$\sin(4\pi x)$"),
-        ("sin_8pi_first_coordinate", r"$\sin(8\pi x)$"),
+        (func_pi_name, FUNCTION_LABELS.get(func_pi_name, func_pi_name))
+        for func_pi_name in evaluator.dgp_param_grid["func_pi_name"]
     ]
     summaries = []
     for func_pi_name, label in pi_specs:
