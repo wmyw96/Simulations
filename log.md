@@ -283,3 +283,10 @@
 - Changed the paper estimator’s default debiasing penalty to `1 / (sqrt(n) * log_2(n))`, with `n` interpreted as the size of the debiasing split `D1`.
 - Added a reusable trial-seeded factory helper for the paper estimator and updated the PLM visualization code so future experiments can show the minimax-debias beta curve automatically whenever that estimator is included.
 - Expanded the experiment log’s method section to document the paper estimator and its default hyper-parameters for future simulation writeups.
+
+## 2026-04-20 23:55:00 EDT
+
+- Added experiment `1.6.1`, a new two-dimensional unit-variance PLM family with `mu(x) = sin(pi x_1) + 0.33 cos(8 pi x_2)` and `pi_k(x) = sin(pi x_1) + ((k+1)/3) cos(8 pi x_2)` for `k in {0,1,2}`.
+- Included the paper minimax-debias estimator in the `1.6.1` comparison set, extended the experiment registry/tests for the new exact id, and reused the existing pi-complexity plotting pipeline for the new family.
+- Fixed a PLM evaluator resume bug so a stale larger `n_trials` header from an interrupted run can now be lowered back to the current target when the completed trial counts support it.
+- Ran the full `10`-trial first-pass `1.6.1` experiment and generated `examples/plm/figs/1.6/1.6.1_pi_complexity_mse_comparison.png`; in this design the treatment nuisance gets progressively harder, the joint LSE beta degrades monotonically, and the minimax-debias beta estimate is markedly more stable than the plain DML AIPW beta.

@@ -1632,3 +1632,66 @@ Main observations:
 Generated figures:
 
 - `examples/plm/figs/1.5/1.5.12_pi_complexity_mse_comparison.png`
+
+## 1.6.1
+
+Experiment `1.6.1`, stored in the simulation artifact `1.6_1`.
+
+### Goal
+
+This experiment moves to a two-dimensional unit-variance design where the outcome regression and the treatment regression share the same smooth first-coordinate signal, but the treatment family gradually increases the amplitude of a high-frequency second-coordinate component. The goal is to see how the DML, paper minimax-debias, oracle, and joint least-squares beta estimators respond as the treatment regression becomes more aligned with that rough second-coordinate component.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 2`
+- Outcome regression:
+  - `mu(x) = sin(pi x_1) + 0.33 cos(8 pi x_2)`
+- Treatment regression candidates:
+  - `pi_1(x) = sin(pi x_1) + (1/3) cos(8 pi x_2)`
+  - `pi_2(x) = sin(pi x_1) + (2/3) cos(8 pi x_2)`
+  - `pi_3(x) = sin(pi x_1) + cos(8 pi x_2)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `10`
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.003034 | 0.007896 | 0.004670 | 0.007128 | 0.314048 | 0.282883 |
+| `pi_2` | 0.003066 | 0.064184 | 0.008030 | 0.009970 | 0.388122 | 0.604707 |
+| `pi_3` | 0.003100 | 0.016565 | 0.009358 | 0.015698 | 0.397304 | 0.782455 |
+
+Main observations:
+
+- This family does make the treatment nuisance progressively harder: DML `pi` MSE rises clearly from `0.282883` to `0.604707` to `0.782455`.
+- The joint least-squares beta estimate also degrades monotonically across the same sequence: `0.007128 -> 0.009970 -> 0.015698`.
+- The plain DML AIPW beta estimate is much less stable. It is already above oracle at `pi_1`, spikes sharply at `pi_2`, and then partially recovers at `pi_3`: `0.007896 -> 0.064184 -> 0.016565`.
+- The paper minimax-debias estimator is noticeably more stable than the plain DML AIPW beta in this family. Its beta MSE only moves from `0.004670` to `0.008030` to `0.009358`, and it beats the plain DML AIPW beta in all three settings.
+- So `1.6.1` is a more informative stress test than many of the earlier `1.5` families. Increasing the rough second-coordinate component in `pi(x)` does make nuisance estimation harder and eventually worsens the simple joint LSE beta fit, while the minimax-debias estimator appears substantially more robust than the baseline DML AIPW estimate in this design.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.1_pi_complexity_mse_comparison.png`

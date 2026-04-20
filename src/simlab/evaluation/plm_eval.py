@@ -364,7 +364,6 @@ class PLMEvaluator(Evaluator):
             completed_counts[signature] = completed_counts.get(signature, 0) + 1
 
         target_n_trials = max(
-            int(results.get("n_trials", 0)),
             int(self.n_trials),
             max(completed_counts.values(), default=0),
         )

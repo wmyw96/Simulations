@@ -131,7 +131,7 @@ def main() -> None:
             results=results,
         )
         return
-    if family_display_id == "1.5":
+    if family_display_id in {"1.5", "1.6"}:
         _plot_family_15_pi_complexity(
             display_exp_id=display_exp_id,
             fig_dir=fig_dir,

@@ -18,6 +18,7 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(normalize_exp_id("1.2.1"), ("1.2_1", "1.2.1"))
         self.assertEqual(normalize_exp_id("1.3.1"), ("1.3_1", "1.3.1"))
         self.assertEqual(normalize_exp_id("1.5.1"), ("1.5_1", "1.5.1"))
+        self.assertEqual(normalize_exp_id("1.6.1"), ("1.6_1", "1.6.1"))
 
         evaluator = build_evaluator_from_exp_id(
             exp_id="1.1.2",
@@ -410,6 +411,36 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertTrue(evaluator_15_12.estimators[0]["accepts_trial_seed"])
         self.assertTrue(evaluator_15_12.estimators[1]["accepts_dgp_config"])
 
+        evaluator_16_1 = build_evaluator_from_exp_id(
+            exp_id="1.6.1",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_16_1.exp_id, "1.6_1")
+        self.assertEqual(evaluator_16_1.result_path.name, "1.6_1.json")
+        self.assertEqual(evaluator_16_1.dgp_param_grid["d"], 2)
+        self.assertEqual(evaluator_16_1.dgp_param_grid["func_mu_name"], "experiment_1_6_mu")
+        self.assertEqual(
+            evaluator_16_1.dgp_param_grid["func_pi_name"],
+            [
+                "experiment_1_6_pi_1",
+                "experiment_1_6_pi_2",
+                "experiment_1_6_pi_3",
+            ],
+        )
+        self.assertAlmostEqual(evaluator_16_1.dgp_param_grid["sigma_u"], 3.0**0.5)
+        self.assertAlmostEqual(evaluator_16_1.dgp_param_grid["sigma_eps"], 3.0**0.5)
+        self.assertEqual(evaluator_16_1.dgp_param_grid["n"], [1024])
+        self.assertEqual([spec["name"] for spec in evaluator_16_1.estimators], ["dml_nn", "plm_minimax_debias", "oracle_aipw"])
+        self.assertEqual(evaluator_16_1.estimators[0]["method_config"]["d"], 2)
+        self.assertEqual(evaluator_16_1.estimators[1]["method_config"]["d"], 2)
+        self.assertEqual(evaluator_16_1.estimators[0]["method_config"]["lambda_mu"], 2e-5)
+        self.assertEqual(evaluator_16_1.estimators[1]["method_config"]["lambda_pi"], 2e-5)
+        self.assertTrue(evaluator_16_1.estimators[0]["accepts_trial_seed"])
+        self.assertTrue(evaluator_16_1.estimators[1]["accepts_trial_seed"])
+        self.assertTrue(evaluator_16_1.estimators[2]["accepts_dgp_config"])
+
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result_root = Path(temp_dir) / "simulation_results"
@@ -515,6 +546,60 @@ class PLMEvaluatorTests(unittest.TestCase):
             results = resumed.run()
             self.assertEqual(results["n_trials"], 3)
             self.assertEqual(len(results["trial_results"]), 3)
+
+    def test_resume_can_lower_stale_n_trials_header_to_current_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_root = Path(temp_dir) / "simulation_results"
+            evaluator = build_experiment_1_1(
+                exp_id="1.1_shrink_header",
+                n_trials=1,
+                seed_offset=7,
+                device="cpu",
+                result_root=result_root,
+            )
+            evaluator.dgp_param_grid["n"] = [16]
+            evaluator.dgp_param_grid["n_test"] = 32
+            dml_config = dict(evaluator.estimators[0]["method_config"])
+            dml_config["N"] = 8
+            dml_config["niter"] = 2
+            dml_config["batch_size"] = 8
+            dml_config["d"] = 1
+            evaluator.estimators[0]["method_config"] = dml_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(dml_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_estimator"],
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            evaluator.estimators[0]["accepts_trial_seed"] = True
+            evaluator.run()
+
+            stored = json.loads(evaluator.result_path.read_text())
+            stored["n_trials"] = 30
+            evaluator.result_path.write_text(json.dumps(stored), encoding="utf-8")
+
+            resumed = build_experiment_1_1(
+                exp_id="1.1_shrink_header",
+                n_trials=1,
+                seed_offset=7,
+                device="cpu",
+                result_root=result_root,
+            )
+            resumed.dgp_param_grid["n"] = [16]
+            resumed.dgp_param_grid["n_test"] = 32
+            resumed_config = dict(resumed.estimators[0]["method_config"])
+            resumed_config["N"] = 8
+            resumed_config["niter"] = 2
+            resumed_config["batch_size"] = 8
+            resumed_config["d"] = 1
+            resumed.estimators[0]["method_config"] = resumed_config
+            resumed.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(resumed_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_estimator"],
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            resumed.estimators[0]["accepts_trial_seed"] = True
+
+            results = resumed.run()
+            self.assertEqual(results["n_trials"], 1)
+            self.assertEqual(len(results["trial_results"]), 1)
 
     def test_pi_complexity_experiment_oracle_tracks_current_dgp(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -216,6 +216,34 @@ def easy_mu_sin_pi_x1_plus_cos_pi_x2(x: np.ndarray) -> np.ndarray:
     return np.sin(np.pi * x1) + np.cos(np.pi * x2)
 
 
+def experiment_1_6_mu(x: np.ndarray) -> np.ndarray:
+    """Return the two-dimensional outcome regression used in experiment 1.6."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    return np.sin(np.pi * x1) + 0.33 * np.cos(8.0 * np.pi * x2)
+
+
+def experiment_1_6_pi_1(x: np.ndarray) -> np.ndarray:
+    """Return the first treatment regression in the 1.6 family."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    return np.sin(np.pi * x1) + (1.0 / 3.0) * np.cos(8.0 * np.pi * x2)
+
+
+def experiment_1_6_pi_2(x: np.ndarray) -> np.ndarray:
+    """Return the second treatment regression in the 1.6 family."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    return np.sin(np.pi * x1) + (2.0 / 3.0) * np.cos(8.0 * np.pi * x2)
+
+
+def experiment_1_6_pi_3(x: np.ndarray) -> np.ndarray:
+    """Return the third treatment regression in the 1.6 family."""
+    x1 = x[:, [0]]
+    x2 = x[:, [1]]
+    return np.sin(np.pi * x1) + np.cos(8.0 * np.pi * x2)
+
+
 def increasing_beta_pi_1(x: np.ndarray) -> np.ndarray:
     """Smooth low-amplitude perturbation of the easy mu design."""
     x1 = x[:, [0]]
@@ -420,6 +448,10 @@ FUNCTION_REGISTRY = {
     "isolated_d4_pi_3": isolated_d4_pi_3,
     "isolated_d4_pi_4": isolated_d4_pi_4,
     "easy_mu_sin_pi_x1_plus_cos_pi_x2": easy_mu_sin_pi_x1_plus_cos_pi_x2,
+    "experiment_1_6_mu": experiment_1_6_mu,
+    "experiment_1_6_pi_1": experiment_1_6_pi_1,
+    "experiment_1_6_pi_2": experiment_1_6_pi_2,
+    "experiment_1_6_pi_3": experiment_1_6_pi_3,
     "increasing_beta_pi_1": increasing_beta_pi_1,
     "increasing_beta_pi_2": increasing_beta_pi_2,
     "increasing_beta_pi_3": increasing_beta_pi_3,
@@ -469,6 +501,10 @@ FUNCTION_LABELS = {
     "isolated_d4_pi_3": r"$0.98\,\sin(2\pi x_1)+\sqrt{1-0.98^2}\operatorname{sign}(\prod_{j=2}^4\sin(8\pi x_j))$",
     "isolated_d4_pi_4": r"$0.98\,\sin(2\pi x_1)+\sqrt{1-0.98^2}\operatorname{sign}(\prod_{j=2}^4\sin(32\pi x_j))$",
     "easy_mu_sin_pi_x1_plus_cos_pi_x2": r"$\sin(\pi x_1)+\cos(\pi x_2)$",
+    "experiment_1_6_mu": r"$\sin(\pi x_1)+0.33\cos(8\pi x_2)$",
+    "experiment_1_6_pi_1": r"$\sin(\pi x_1)+\frac{1}{3}\cos(8\pi x_2)$",
+    "experiment_1_6_pi_2": r"$\sin(\pi x_1)+\frac{2}{3}\cos(8\pi x_2)$",
+    "experiment_1_6_pi_3": r"$\sin(\pi x_1)+\cos(8\pi x_2)$",
     "increasing_beta_pi_1": r"$\mu(x)+0.05\frac{\sin(2\pi x_1)+\cos(2\pi x_2)}{\sqrt{2}}$",
     "increasing_beta_pi_2": r"$\mu(x)+0.18\,\operatorname{sign}(\sin(8\pi x_1))\operatorname{sign}(\cos(8\pi x_2))$",
     "increasing_beta_pi_3": r"$\mu(x)+0.20\,\operatorname{sign}(\sin(8\pi x_1))\operatorname{sign}(\cos(8\pi x_2))$",
@@ -1951,12 +1987,111 @@ def build_experiment_1_5_12(
     )
 
 
+def build_experiment_1_6_1(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build the two-dimensional unit-variance family requested for experiment 1.6."""
+    unit_variance_scale = math.sqrt(3.0)
+    dgp_param_grid = {
+        "d": 2,
+        "func_mu_name": "experiment_1_6_mu",
+        "func_pi_name": [
+            "experiment_1_6_pi_1",
+            "experiment_1_6_pi_2",
+            "experiment_1_6_pi_3",
+        ],
+        "beta_sampler_name": "uniform",
+        "beta_low": -0.5,
+        "beta_high": 0.5,
+        "sigma_u": unit_variance_scale,
+        "sigma_eps": unit_variance_scale,
+        "n_test": 10000,
+        "n": [1024],
+    }
+
+    dml_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 1024,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": 2,
+    }
+
+    minimax_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 1024,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": 2,
+        "variance_mode": "constant_one",
+    }
+
+    oracle_method_config = {
+        "func_mu_name": "experiment_1_6_mu",
+        "func_pi_name": None,
+        "follows_dgp_pi": True,
+    }
+
+    estimators = [
+        {
+            "name": "dml_nn",
+            "is_oracle": False,
+            "factory_name": "make_plm_dml_estimator",
+            "method_config": deepcopy(dml_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_dml_factory(dml_method_config),
+        },
+        {
+            "name": "plm_minimax_debias",
+            "is_oracle": False,
+            "factory_name": "make_plm_minimax_debias_estimator",
+            "method_config": deepcopy(minimax_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_minimax_factory(minimax_method_config),
+        },
+        {
+            "name": "oracle_aipw",
+            "is_oracle": True,
+            "factory_name": "make_plm_oracle_estimator",
+            "method_config": deepcopy(oracle_method_config),
+            "accepts_dgp_config": True,
+            "factory": _make_oracle_factory(oracle_method_config),
+        },
+    ]
+
+    return PLMEvaluator(
+        exp_name=EXPERIMENT_NAME,
+        exp_id=exp_id,
+        dgp_generator=plm_uniform_noise_dgp_generator,
+        dgp_param_grid=dgp_param_grid,
+        estimators=estimators,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        result_root=result_root,
+    )
+
+
 EXPERIMENT_FAMILY_BUILDERS = {
     "1.1": build_experiment_1_1,
     "1.2": build_experiment_1_2,
     "1.3": build_experiment_1_3,
     "1.4": build_experiment_1_4_1,
     "1.5": build_experiment_1_5,
+    "1.6": build_experiment_1_6_1,
 }
 
 EXPERIMENT_ID_BUILDERS = {
@@ -1982,6 +2117,7 @@ EXPERIMENT_ID_BUILDERS = {
     "1.5_10": build_experiment_1_5_10,
     "1.5_11": build_experiment_1_5_11,
     "1.5_12": build_experiment_1_5_12,
+    "1.6_1": build_experiment_1_6_1,
 }
 
 
