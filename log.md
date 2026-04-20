@@ -171,3 +171,9 @@
 
 - Audited the saved `1.4.4` artifact after the D2 and validation figures looked nearly identical, and verified that the tracked paths are distinct in every record.
 - Confirmed the visual similarity comes from very small generalization gaps in this smooth one-dimensional setup, not from reusing `D2` as the validation sample.
+
+## 2026-04-20 13:15:00 EDT
+
+- Added Experiment `1.5.1`, which fixes `n = 1024`, `lambda_mu = lambda_pi = 2e-5`, and compares three treatment regressions `sin(2 pi x)`, `sin(4 pi x)`, and `sin(8 pi x)` under the random-beta PLM design.
+- Extended the evaluator/experiment factory interface so oracle estimators can follow the current DGP nuisance function when a nuisance function name varies across the parameter grid.
+- Added the `1.5.1` visualization, ran the experiment with `30` trials per `pi` choice, generated `examples/plm/figs/1.5/1.5.1_pi_complexity_mse_comparison.png`, and documented the results in `examples/plm/exp_log.md`.

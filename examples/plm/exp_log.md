@@ -818,3 +818,72 @@ Generated figures:
 
 - `examples/plm/figs/1.4/1.4.4_d2_average_paths.png`
 - `examples/plm/figs/1.4/1.4.4_validation_average_paths.png`
+
+## 1.5.1
+
+Experiment `1.5.1`, stored in the simulation artifact `1.5_1`.
+
+### Goal
+
+This experiment studies whether making the treatment regression `pi(x)` harder to estimate also degrades the final beta estimation error. The key question is whether higher treatment-nuisance complexity translates into a clear deterioration of the DML AIPW estimator, or whether the effect is weaker and more indirect. To isolate that question, the experiment keeps the network architecture, sample size, and regularization fixed, and changes only the oscillation level of `pi(x)`.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 1`
+- Outcome regression: `mu(x) = sin(2 pi x)`
+- Treatment regression candidates:
+  - `pi(x) = sin(2 pi x)`
+  - `pi(x) = sin(4 pi x)`
+  - `pi(x) = sin(8 pi x)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = 0.5`
+- Outcome noise scale: `sigma_eps = 0.5`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `30`
+
+Method design:
+
+- Compared methods: Neural DML and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+Visualization design:
+
+- The single summary figure reports the average mean squared error for four quantities as the treatment regression becomes more oscillatory:
+  - Oracle AIPW beta MSE,
+  - DML AIPW beta MSE,
+  - DML `mu` MSE,
+  - DML `pi` MSE.
+- The horizontal axis indexes the three treatment-regression choices, and the vertical axis uses a logarithmic scale so the four error types can be compared on the same panel.
+
+### Results
+
+Average MSE over `30` trials:
+
+| pi(x) | Oracle AIPW beta MSE | DML AIPW beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: |
+| `sin(2 pi x)` | 0.002332 | 0.187253 | 0.012780 | 0.009745 |
+| `sin(4 pi x)` | 0.002115 | 0.009719 | 0.022983 | 0.019237 |
+| `sin(8 pi x)` | 0.001988 | 0.003350 | 0.008293 | 0.084803 |
+
+Main observations:
+
+- The treatment nuisance does become harder to learn as the oscillation frequency increases. The DML `pi` MSE roughly doubles from `sin(2 pi x)` to `sin(4 pi x)`, and then jumps sharply to `0.084803` at `sin(8 pi x)`.
+- The final DML beta error does not move in lockstep with the treatment-nuisance error. In this run, the DML AIPW beta MSE is actually worst for the easiest treatment regression `sin(2 pi x)`, then drops substantially for `sin(4 pi x)`, and is smallest for `sin(8 pi x)`.
+- The oracle AIPW beta benchmark stays stable across the three designs, with only a mild improvement as the treatment regression becomes more oscillatory. That indicates the large variation is coming from nuisance learning rather than from a fundamental change in the oracle identification difficulty.
+- Taken together, these results suggest that treatment-nuisance error alone is not enough to explain the final beta error in this setup. The relation is clearly not monotone here, so the DML beta error appears to depend on a more complicated interaction between the learned nuisances and the orthogonal-score correction.
+
+Generated figures:
+
+- `examples/plm/figs/1.5/1.5.1_pi_complexity_mse_comparison.png`

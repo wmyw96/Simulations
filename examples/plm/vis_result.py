@@ -131,6 +131,13 @@ def main() -> None:
             results=results,
         )
         return
+    if family_display_id == "1.5":
+        _plot_family_15_pi_complexity(
+            display_exp_id=display_exp_id,
+            fig_dir=fig_dir,
+            evaluator=evaluator,
+        )
+        return
 
     method_names = sorted(
         {
@@ -614,6 +621,79 @@ def _plot_family_14_lambda_sweep(
     fig.savefig(average_path, dpi=220)
     plt.close(fig)
     print(f"Saved {average_path}")
+
+
+def _plot_family_15_pi_complexity(
+    display_exp_id: str,
+    fig_dir: Path,
+    evaluator,
+) -> None:
+    import matplotlib.pyplot as plt
+
+    fixed_dgp_config = {
+        key: value
+        for key, value in evaluator.dgp_param_grid.items()
+        if key not in {"func_pi_name", "n"}
+    }
+    fixed_dgp_config["n"] = int(evaluator.dgp_param_grid["n"][0])
+    pi_specs = [
+        ("sin_2pi_first_coordinate", r"$\sin(2\pi x)$"),
+        ("sin_4pi_first_coordinate", r"$\sin(4\pi x)$"),
+        ("sin_8pi_first_coordinate", r"$\sin(8\pi x)$"),
+    ]
+    summaries = []
+    for func_pi_name, label in pi_specs:
+        summary = evaluator.query_results(
+            {
+                **fixed_dgp_config,
+                "func_pi_name": func_pi_name,
+            },
+            mode="summary",
+        )
+        summaries.append((label, summary))
+
+    x_values = np.arange(len(pi_specs), dtype=float)
+    line_specs = [
+        ("oracle_aipw", "beta_hat_mse", "Oracle AIPW beta", COLOR_BANK["myred"], "-"),
+        ("dml_nn", "beta_hat_mse", "DML AIPW beta", COLOR_BANK["myorange"], "-"),
+        ("dml_nn", "mu_mse", "DML mu", COLOR_BANK["myblue"], "--"),
+        ("dml_nn", "pi_mse", "DML pi", COLOR_BANK["mylightblue"], "--"),
+    ]
+
+    plt.figure(figsize=(7.4, 4.8))
+    for method_name, metric_key, label, color, linestyle in line_specs:
+        y_values = []
+        valid_x = []
+        for idx, (_, summary) in enumerate(summaries):
+            if method_name not in summary:
+                continue
+            metric_value = float(summary[method_name][metric_key])
+            if metric_value <= 0.0:
+                continue
+            valid_x.append(x_values[idx])
+            y_values.append(metric_value)
+        if valid_x:
+            plt.plot(
+                valid_x,
+                y_values,
+                color=color,
+                linestyle=linestyle,
+                linewidth=2.4,
+                marker="o",
+                label=label,
+            )
+
+    plt.yscale("log")
+    plt.xticks(x_values, [label for label, _ in summaries])
+    plt.xlabel(r"Treatment regression $\pi(x)$")
+    plt.ylabel("Average MSE")
+    plt.title(f"{display_exp_id}: effect of pi complexity")
+    plt.legend()
+    plt.tight_layout()
+    output_path = fig_dir / f"{display_exp_id}_pi_complexity_mse_comparison.png"
+    plt.savefig(output_path, dpi=220)
+    plt.close()
+    print(f"Saved {output_path}")
 
 
 if __name__ == "__main__":

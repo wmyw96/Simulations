@@ -170,7 +170,11 @@ class PLMEvaluator(Evaluator):
 
         estimator_results = []
         for estimator_spec in self.estimators:
-            estimator = self._instantiate_estimator(estimator_spec=estimator_spec, trial_seed=trial_seed)
+            estimator = self._instantiate_estimator(
+                estimator_spec=estimator_spec,
+                trial_seed=trial_seed,
+                dgp_config=dgp_config,
+            )
             start_time = time.perf_counter()
             fit_data = self._build_fit_data(
                 estimator_spec=estimator_spec,
@@ -417,14 +421,23 @@ class PLMEvaluator(Evaluator):
             "is_oracle": bool(spec["is_oracle"]),
             "method_config": deepcopy(spec.get("method_config", {})),
             "accepts_trial_seed": bool(spec.get("accepts_trial_seed", False)),
+            "accepts_dgp_config": bool(spec.get("accepts_dgp_config", False)),
         }
 
-    def _instantiate_estimator(self, estimator_spec: dict[str, Any], trial_seed: int) -> Any:
+    def _instantiate_estimator(
+        self,
+        estimator_spec: dict[str, Any],
+        trial_seed: int,
+        dgp_config: dict[str, Any],
+    ) -> Any:
         """Build an estimator instance, optionally passing a trial-specific seed."""
         factory = estimator_spec["factory"]
+        factory_kwargs: dict[str, Any] = {}
         if estimator_spec["accepts_trial_seed"]:
-            return factory(trial_seed=trial_seed)
-        return factory()
+            factory_kwargs["trial_seed"] = trial_seed
+        if estimator_spec["accepts_dgp_config"]:
+            factory_kwargs["dgp_config"] = deepcopy(dgp_config)
+        return factory(**factory_kwargs)
 
     def _serializable_estimator_specs(self) -> list[dict[str, Any]]:
         """Return the serializable estimator spec metadata used in result headers."""
@@ -438,6 +451,8 @@ class PLMEvaluator(Evaluator):
             }
             if spec["accepts_trial_seed"]:
                 item["accepts_trial_seed"] = True
+            if spec["accepts_dgp_config"]:
+                item["accepts_dgp_config"] = True
             serializable_specs.append(item)
         return serializable_specs
 
@@ -476,6 +491,8 @@ class PLMEvaluator(Evaluator):
             }
             if spec.get("accepts_trial_seed"):
                 item["accepts_trial_seed"] = True
+            if spec.get("accepts_dgp_config"):
+                item["accepts_dgp_config"] = True
             normalized.append(item)
         return normalized
 

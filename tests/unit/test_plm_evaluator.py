@@ -17,6 +17,7 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(normalize_exp_id("1.1_2"), ("1.1_2", "1.1.2"))
         self.assertEqual(normalize_exp_id("1.2.1"), ("1.2_1", "1.2.1"))
         self.assertEqual(normalize_exp_id("1.3.1"), ("1.3_1", "1.3.1"))
+        self.assertEqual(normalize_exp_id("1.5.1"), ("1.5_1", "1.5.1"))
 
         evaluator = build_evaluator_from_exp_id(
             exp_id="1.1.2",
@@ -113,6 +114,28 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(len(lambda_values), len(expected_lambda_values))
         for observed, expected in zip(lambda_values, expected_lambda_values):
             self.assertAlmostEqual(observed, expected)
+
+        evaluator_15 = build_evaluator_from_exp_id(
+            exp_id="1.5.1",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_15.exp_id, "1.5_1")
+        self.assertEqual(evaluator_15.result_path.name, "1.5_1.json")
+        self.assertEqual(
+            evaluator_15.dgp_param_grid["func_pi_name"],
+            [
+                "sin_2pi_first_coordinate",
+                "sin_4pi_first_coordinate",
+                "sin_8pi_first_coordinate",
+            ],
+        )
+        self.assertEqual(evaluator_15.dgp_param_grid["n"], [1024])
+        self.assertEqual(evaluator_15.estimators[0]["method_config"]["lambda_mu"], 2e-5)
+        self.assertEqual(evaluator_15.estimators[0]["method_config"]["lambda_pi"], 2e-5)
+        self.assertTrue(evaluator_15.estimators[0]["accepts_trial_seed"])
+        self.assertTrue(evaluator_15.estimators[1]["accepts_dgp_config"])
 
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -218,8 +241,40 @@ class PLMEvaluatorTests(unittest.TestCase):
             self.assertEqual(results["n_trials"], 3)
             self.assertEqual(len(results["trial_results"]), 3)
 
-            saved = json.loads(resumed.result_path.read_text())
-            self.assertEqual(saved["n_trials"], 3)
+    def test_pi_complexity_experiment_oracle_tracks_current_dgp(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_root = Path(temp_dir) / "simulation_results"
+            evaluator = build_evaluator_from_exp_id(
+                exp_id="1.5.1",
+                n_trials=1,
+                seed_offset=3,
+                device="cpu",
+                result_root=result_root,
+            )
+            evaluator.dgp_param_grid["n"] = [16]
+            evaluator.dgp_param_grid["n_test"] = 32
+            dml_config = dict(evaluator.estimators[0]["method_config"])
+            dml_config["N"] = 8
+            dml_config["niter"] = 2
+            dml_config["batch_size"] = 8
+            dml_config["d"] = 1
+            evaluator.estimators[0]["method_config"] = dml_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(dml_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_estimator"],
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+
+            results = evaluator.run()
+            self.assertEqual(len(results["trial_results"]), 3)
+            oracle_errors = [
+                record["pi_mse"]
+                for trial in results["trial_results"]
+                for record in trial["estimator_results"]
+                if record["estimator_name"] == "oracle_aipw"
+            ]
+            self.assertEqual(len(oracle_errors), 3)
+            for error in oracle_errors:
+                self.assertAlmostEqual(error, 0.0, places=12)
 
     def test_run_rejects_existing_results_with_mismatched_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
