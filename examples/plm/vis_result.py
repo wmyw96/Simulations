@@ -118,6 +118,13 @@ def main() -> None:
                 grouped_records=grouped_records,
             )
             return
+        if display_exp_id == "1.4.4":
+            _plot_family_14_validation_paths(
+                display_exp_id=display_exp_id,
+                fig_dir=fig_dir,
+                results=results,
+            )
+            return
         _plot_family_14_nuisance_paths(
             display_exp_id=display_exp_id,
             fig_dir=fig_dir,
@@ -300,6 +307,7 @@ def _plot_family_14_nuisance_paths(
 ) -> None:
     import matplotlib.pyplot as plt
 
+    tracking_split = _infer_tracking_split(results)
     plt.figure(figsize=(7.5, 4.8))
     mu_labeled = False
     pi_labeled = False
@@ -337,7 +345,7 @@ def _plot_family_14_nuisance_paths(
         pi_labeled = True
 
     plt.xlabel("Epoch")
-    plt.ylabel("Oracle nuisance MSE on D2")
+    plt.ylabel(f"Oracle nuisance MSE on {tracking_split}")
     plt.yscale("log")
     plt.title(f"{display_exp_id}: nuisance-learning trajectories")
     plt.legend()
@@ -346,6 +354,73 @@ def _plot_family_14_nuisance_paths(
     plt.savefig(output_path, dpi=220)
     plt.close()
     print(f"Saved {output_path}")
+
+
+def _infer_tracking_split(results: dict[str, object]) -> str:
+    """Infer the tracking source label from the saved trial records."""
+    for trial in results["trial_results"]:
+        for record in trial["estimator_results"]:
+            if "tracking_split" in record:
+                return str(record["tracking_split"])
+    return "tracked sample"
+
+
+def _plot_family_14_validation_paths(
+    display_exp_id: str,
+    fig_dir: Path,
+    results: dict[str, object],
+) -> None:
+    import matplotlib.pyplot as plt
+
+    epoch_grid = None
+    mu_paths = []
+    pi_paths = []
+    for trial in results["trial_results"]:
+        estimator_records = [
+            record
+            for record in trial["estimator_results"]
+            if "mu_mse_path" in record and "pi_mse_path" in record
+        ]
+        if not estimator_records:
+            continue
+        record = estimator_records[0]
+        if epoch_grid is None:
+            epoch_grid = record.get("epoch_grid", [])
+        mu_paths.append(np.asarray(record.get("mu_mse_path", []), dtype=float))
+        pi_paths.append(np.asarray(record.get("pi_mse_path", []), dtype=float))
+
+    if epoch_grid is None or not mu_paths or not pi_paths:
+        raise SystemExit(f"No validation tracking records were found in the results for {display_exp_id}.")
+
+    epoch_grid = np.asarray(epoch_grid, dtype=float)
+    mu_array = np.asarray(mu_paths, dtype=float)
+    pi_array = np.asarray(pi_paths, dtype=float)
+    tracking_split = _infer_tracking_split(results)
+
+    for metric_name, metric_array, color, filename_stem in (
+        ("mu", mu_array, COLOR_BANK["myred"], "mu_validation_paths"),
+        ("pi", pi_array, COLOR_BANK["myblue"], "pi_validation_paths"),
+    ):
+        plt.figure(figsize=(7.4, 4.8))
+        for path in metric_array:
+            plt.plot(epoch_grid, path, color=color, linewidth=1.2, alpha=0.35)
+        plt.plot(
+            epoch_grid,
+            metric_array.mean(axis=0),
+            color="black",
+            linewidth=2.2,
+            label="trial average",
+        )
+        plt.xlabel("Epoch")
+        plt.ylabel(f"Oracle {metric_name} MSE on {tracking_split}")
+        plt.yscale("log")
+        plt.title(f"{display_exp_id}: validation {metric_name}-learning trajectories")
+        plt.legend()
+        plt.tight_layout()
+        output_path = fig_dir / f"{display_exp_id}_{filename_stem}.png"
+        plt.savefig(output_path, dpi=220)
+        plt.close()
+        print(f"Saved {output_path}")
 
 
 def _collect_tracking_records_by_lambda(

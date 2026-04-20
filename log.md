@@ -154,3 +154,9 @@
 - Added Experiment `1.4.3`, a wider seven-value lambda sweep with `lambda_mu = lambda_pi = 5^l * 1e-4` for `l in {-3, -2, -1, 0, 1, 2, 3}`.
 - Generalized the `1.4` plotting code so lambda-sweep experiments can render an arbitrary number of panels instead of assuming a fixed six-panel layout.
 - Ran `1.4.3` with `20` trials, generated `examples/plm/figs/1.4/1.4.3_lambda_path_panels.png` and `examples/plm/figs/1.4/1.4.3_lambda_average_paths.png`, and added the new wide-range summary to `examples/plm/exp_log.md`.
+
+## 2026-04-20 11:05:00 EDT
+
+- Extended oracle nuisance tracking so tracked estimators can evaluate epoch-by-epoch nuisance MSE on an independent validation sample instead of only on `D2`.
+- Added exact experiment id `1.4.4` for validation-based nuisance tracking with `n = n_val = 1024` and the baseline `lambda_mu = lambda_pi = 1e-4`.
+- Generated separate validation-path figures for `mu` and `pi`, ran `1.4.4` with `10` trials, and documented the validation-based checkpoint summary in `examples/plm/exp_log.md`.

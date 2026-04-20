@@ -97,6 +97,18 @@ class PLMEvaluatorTests(unittest.TestCase):
         for observed, expected in zip(lambda_values, expected_lambda_values):
             self.assertAlmostEqual(observed, expected)
 
+        evaluator_14_4 = build_evaluator_from_exp_id(
+            exp_id="1.4.4",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_14_4.exp_id, "1.4_4")
+        self.assertEqual(evaluator_14_4.result_path.name, "1.4_4.json")
+        self.assertEqual(len(evaluator_14_4.estimators), 1)
+        self.assertEqual(evaluator_14_4.estimators[0]["method_config"]["tracking_source"], "validation")
+        self.assertEqual(evaluator_14_4.estimators[0]["method_config"]["validation_n"], 1024)
+
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result_root = Path(temp_dir) / "simulation_results"
@@ -317,6 +329,37 @@ class PLMEvaluatorTests(unittest.TestCase):
             self.assertEqual(len(estimator_record["mu_mse_path"]), 3)
             self.assertEqual(len(estimator_record["pi_mse_path"]), 3)
             self.assertEqual(estimator_record["tracking_split"], "D2")
+
+    def test_validation_tracking_family_serializes_validation_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_root = Path(temp_dir) / "simulation_results"
+            evaluator = build_evaluator_from_exp_id(
+                exp_id="1.4.4",
+                n_trials=1,
+                seed_offset=2,
+                device="cpu",
+                result_root=result_root,
+            )
+            evaluator.dgp_param_grid["n"] = [16]
+            evaluator.dgp_param_grid["n_test"] = 32
+            tracking_config = dict(evaluator.estimators[0]["method_config"])
+            tracking_config["N"] = 8
+            tracking_config["niter"] = 2
+            tracking_config["batch_size"] = 8
+            tracking_config["d"] = 1
+            tracking_config["validation_n"] = 16
+            evaluator.estimators[0]["method_config"] = tracking_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(tracking_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_tracking_estimator"],
+            ).make_plm_dml_tracking_estimator({**cfg, "seed": trial_seed})
+            evaluator.estimators[0]["accepts_trial_seed"] = True
+
+            results = evaluator.run()
+            estimator_record = results["trial_results"][0]["estimator_results"][0]
+
+            self.assertEqual(estimator_record["tracking_split"], "validation")
+            self.assertEqual(estimator_record["tracking_n"], 16)
 
 
 if __name__ == "__main__":

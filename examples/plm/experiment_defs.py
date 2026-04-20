@@ -179,6 +179,8 @@ def build_tracking_experiment(
     seed_offset: int = 0,
     device: str = "cpu",
     result_root: str | Path = DEFAULT_RESULT_ROOT,
+    tracking_source: str = "d2",
+    validation_n: int | None = None,
 ) -> PLMEvaluator:
     """Build a nuisance-tracking experiment with one estimator per lambda choice."""
     dgp_param_grid = {
@@ -203,6 +205,7 @@ def build_tracking_experiment(
             "lambda_mu": float(lambda_value),
             "lambda_pi": float(lambda_value),
             "lambda_label": lambda_label,
+            "tracking_source": tracking_source,
             "niter": 200,
             "lr": 1e-3,
             "batch_size": 1024,
@@ -210,6 +213,8 @@ def build_tracking_experiment(
             "seed_mode": "trial_seed",
             "d": 1,
         }
+        if validation_n is not None:
+            tracking_method_config["validation_n"] = int(validation_n)
         estimators.append(
             {
                 "name": f"dml_nn_tracking_lambda_{lambda_label}",
@@ -358,6 +363,26 @@ def build_experiment_1_4_3(
         seed_offset=seed_offset,
         device=device,
         result_root=result_root,
+    )
+
+
+def build_experiment_1_4_4(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build validation-based nuisance-path tracking for the baseline lambda."""
+    return build_tracking_experiment(
+        exp_id=exp_id,
+        lambda_values=[1e-4],
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        device=device,
+        result_root=result_root,
+        tracking_source="validation",
+        validation_n=1024,
     )
 
 
@@ -525,6 +550,7 @@ EXPERIMENT_ID_BUILDERS = {
     "1.4_1": build_experiment_1_4_1,
     "1.4_2": build_experiment_1_4_2,
     "1.4_3": build_experiment_1_4_3,
+    "1.4_4": build_experiment_1_4_4,
 }
 
 

@@ -246,7 +246,7 @@ class PLMDMLEstimator(Estimator):
                     "epoch_grid": epoch_grid,
                     "mu_mse_path": mu_mse_path,
                     "pi_mse_path": pi_mse_path,
-                    "tracking_split": "D2",
+                    "tracking_split": oracle_tracking["split_label"],
                     "tracking_n": int(oracle_tracking["x"].shape[0]),
                 }
             )
@@ -374,18 +374,35 @@ def _build_oracle_tracking_state(
     device: torch.device,
 ) -> dict[str, torch.Tensor]:
     """Build tensors for oracle nuisance tracking on the fitted split."""
-    if "mu_x" not in data.oracle or "pi_x" not in data.oracle:
-        raise KeyError(
-            "Oracle nuisance tracking requires oracle keys 'mu_x' and 'pi_x' in the sampled data."
+    validation_keys = {"validation_x", "validation_mu_x", "validation_pi_x"}
+    if validation_keys.issubset(data.oracle):
+        tracking_x = _validate_feature_matrix(data.oracle["validation_x"])
+        tracking_mu = _as_float_column(
+            data.oracle["validation_mu_x"],
+            len(tracking_x),
+            label="validation oracle mu_x",
         )
-    split = n_total // 2
-    tracking_x = _validate_feature_matrix(data.observed["x"][split:])
-    tracking_mu = _as_float_column(data.oracle["mu_x"], n_total, label="oracle mu_x")[split:]
-    tracking_pi = _as_float_column(data.oracle["pi_x"], n_total, label="oracle pi_x")[split:]
+        tracking_pi = _as_float_column(
+            data.oracle["validation_pi_x"],
+            len(tracking_x),
+            label="validation oracle pi_x",
+        )
+        split_label = "validation"
+    else:
+        if "mu_x" not in data.oracle or "pi_x" not in data.oracle:
+            raise KeyError(
+                "Oracle nuisance tracking requires oracle keys 'mu_x' and 'pi_x' in the sampled data."
+            )
+        split = n_total // 2
+        tracking_x = _validate_feature_matrix(data.observed["x"][split:])
+        tracking_mu = _as_float_column(data.oracle["mu_x"], n_total, label="oracle mu_x")[split:]
+        tracking_pi = _as_float_column(data.oracle["pi_x"], n_total, label="oracle pi_x")[split:]
+        split_label = "D2"
     return {
         "x": torch.as_tensor(tracking_x, dtype=torch.float32, device=device),
         "mu": torch.as_tensor(tracking_mu, dtype=torch.float32, device=device),
         "pi": torch.as_tensor(tracking_pi, dtype=torch.float32, device=device),
+        "split_label": split_label,
     }
 
 

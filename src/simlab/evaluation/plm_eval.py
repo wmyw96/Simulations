@@ -154,6 +154,7 @@ class PLMEvaluator(Evaluator):
         dgp = self._build_dgp(dgp_config=dgp_config, seed=trial_seed)
         train_seed = trial_seed + 1
         test_seed = trial_seed + 2
+        validation_seed = trial_seed + 3
         train_n = int(dgp_config["n"])
         test_n = int(dgp_config["n_test"])
 
@@ -161,12 +162,22 @@ class PLMEvaluator(Evaluator):
         data_observed = SampledData(observed=deepcopy(data_oracle.observed))
         data_test = dgp.sample(n=test_n, seed=test_seed, oracle=True)
         beta_true = float(dgp.true_parameter())
+        validation_data = self._maybe_sample_validation_data(
+            dgp=dgp,
+            train_n=train_n,
+            validation_seed=validation_seed,
+        )
 
         estimator_results = []
         for estimator_spec in self.estimators:
             estimator = self._instantiate_estimator(estimator_spec=estimator_spec, trial_seed=trial_seed)
             start_time = time.perf_counter()
-            fit_data = data_oracle if estimator_spec["is_oracle"] else data_observed
+            fit_data = self._build_fit_data(
+                estimator_spec=estimator_spec,
+                data_oracle=data_oracle,
+                data_observed=data_observed,
+                validation_data=validation_data,
+            )
             fit_result = estimator.fit(fit_data)
             runtime_sec = time.perf_counter() - start_time
             estimator_results.append(
@@ -188,8 +199,57 @@ class PLMEvaluator(Evaluator):
             "trial_seed": trial_seed,
             "train_seed": train_seed,
             "test_seed": test_seed,
+            "validation_seed": validation_seed if validation_data is not None else None,
             "estimator_results": estimator_results,
         }
+
+    def _maybe_sample_validation_data(
+        self,
+        dgp: Any,
+        train_n: int,
+        validation_seed: int,
+    ) -> SampledData | None:
+        """Sample one shared validation set when any estimator requests validation tracking."""
+        requested_sizes = {
+            int(spec["method_config"].get("validation_n", train_n))
+            for spec in self.estimators
+            if spec["method_config"].get("tracking_source") == "validation"
+        }
+        if not requested_sizes:
+            return None
+        if len(requested_sizes) != 1:
+            raise ValueError("All validation-tracking estimators must use the same validation_n.")
+        validation_n = requested_sizes.pop()
+        return dgp.sample(n=validation_n, seed=validation_seed, oracle=True)
+
+    def _build_fit_data(
+        self,
+        estimator_spec: dict[str, Any],
+        data_oracle: SampledData,
+        data_observed: SampledData,
+        validation_data: SampledData | None,
+    ) -> SampledData:
+        """Prepare the fit data for one estimator, attaching validation data when requested."""
+        base_data = data_oracle if estimator_spec["is_oracle"] else data_observed
+        tracking_source = estimator_spec["method_config"].get("tracking_source")
+        if tracking_source != "validation":
+            return base_data
+        if validation_data is None:
+            raise ValueError("Validation tracking was requested but no validation sample was created.")
+        if not estimator_spec["is_oracle"]:
+            raise ValueError("Validation tracking currently requires oracle-enabled estimators.")
+        augmented_oracle = deepcopy(data_oracle.oracle)
+        augmented_oracle.update(
+            {
+                "validation_x": deepcopy(validation_data.observed["x"]),
+                "validation_mu_x": deepcopy(validation_data.oracle["mu_x"]),
+                "validation_pi_x": deepcopy(validation_data.oracle["pi_x"]),
+            }
+        )
+        return SampledData(
+            observed=deepcopy(data_oracle.observed),
+            oracle=augmented_oracle,
+        )
 
     def _evaluate_estimator(
         self,

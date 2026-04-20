@@ -6,6 +6,7 @@ import unittest
 
 import numpy as np
 
+from simlab.core.records import SampledData
 from simlab.dgp.partial_linear import PartialLinearModelUniformNoiseDGP
 from simlab.estimators.plm_est import (
     PLMDMLEstimator,
@@ -183,6 +184,47 @@ class PLMEstimatorTests(unittest.TestCase):
         self.assertEqual(len(result.diagnostics["pi_mse_path"]), 4)
         self.assertEqual(result.diagnostics["tracking_split"], "D2")
         self.assertEqual(result.diagnostics["tracking_n"], 6)
+
+    def test_tracking_estimator_uses_validation_sample_when_available(self) -> None:
+        dgp = PartialLinearModelUniformNoiseDGP(
+            beta=0.25,
+            func_mu=zero_mu,
+            func_pi=linear_pi,
+            d=2,
+            sigma_u=0.2,
+            sigma_eps=0.1,
+        )
+        train_sample = dgp.sample(n=12, seed=1234, oracle=True)
+        validation_sample = dgp.sample(n=8, seed=4321, oracle=True)
+        fit_sample = SampledData(
+            observed=train_sample.observed,
+            oracle={
+                **train_sample.oracle,
+                "validation_x": validation_sample.observed["x"],
+                "validation_mu_x": validation_sample.oracle["mu_x"],
+                "validation_pi_x": validation_sample.oracle["pi_x"],
+            },
+        )
+        estimator = PLMDMLOracleTrackingEstimator(
+            name="dml-track-validation",
+            hyper_parameters={
+                "L": 2,
+                "N": 8,
+                "lambda_mu": 1e-4,
+                "lambda_pi": 1e-4,
+                "niter": 3,
+                "lr": 1e-3,
+                "batch_size": 4,
+                "seed": 5,
+            },
+            d=2,
+            device="cpu",
+        )
+
+        result = estimator.fit(fit_sample)
+
+        self.assertEqual(result.diagnostics["tracking_split"], "validation")
+        self.assertEqual(result.diagnostics["tracking_n"], 8)
 
 
 if __name__ == "__main__":
