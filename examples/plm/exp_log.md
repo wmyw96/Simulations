@@ -1021,19 +1021,20 @@ Visualization design:
 
 Average MSE over `30` trials:
 
-| pi(x) | Oracle AIPW beta MSE | DML AIPW beta MSE | DML mu MSE | DML pi MSE |
-| --- | ---: | ---: | ---: | ---: |
-| `sign(sin(2 pi x)) * |sin(2 pi x)|` | 0.002332 | 0.187253 | 0.012780 | 0.009745 |
-| `sign(sin(2 pi x)) * |sin(4 pi x)|` | 0.002194 | 0.005391 | 0.009786 | 0.027950 |
-| `sign(sin(2 pi x)) * |sin(8 pi x)|` | 0.002222 | 0.003443 | 0.008389 | 0.083315 |
+| pi(x) | Oracle AIPW beta MSE | DML AIPW beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `sign(sin(2 pi x)) * |sin(2 pi x)|` | 0.002332 | 0.187253 | 0.005774 | 0.012780 | 0.009745 |
+| `sign(sin(2 pi x)) * |sin(4 pi x)|` | 0.002194 | 0.005391 | 0.003864 | 0.009786 | 0.027950 |
+| `sign(sin(2 pi x)) * |sin(8 pi x)|` | 0.002222 | 0.003443 | 0.001744 | 0.008389 | 0.083315 |
 
 Main observations:
 
 - The first case reduces exactly to `sin(2 pi x)`, so its numbers match the `1.5.1` baseline. That provides a useful sanity check that the corrected function family is wired properly.
 - The treatment nuisance error again grows sharply with oscillation frequency: DML `pi` MSE goes from `0.009745` to `0.027950` to `0.083315`.
-- Even with that increase in treatment-nuisance difficulty, the DML beta error does not increase with it. Instead it drops from `0.187253` in the baseline case to `0.005391` and then `0.003443`.
-- The oracle AIPW beta benchmark stays essentially flat across the three settings, so the main change is still happening in nuisance learning rather than in the oracle target itself.
-- Taken together, the corrected absolute-value family leads to the same qualitative conclusion as the previous `1.5` variants: larger treatment-regression error by itself is not enough to explain the final DML beta error.
+- The key point is that both beta estimators improve as `k` increases. The joint LSE beta MSE drops from `0.005774` to `0.003864` to `0.001744`, and the DML AIPW beta MSE drops even more dramatically from `0.187253` to `0.005391` to `0.003443`.
+- That pattern suggests the improvement is not caused by the AIPW correction alone. Instead, the data geometry itself is becoming more favorable for beta estimation: when `pi(x)` is exactly `mu(x)`, the treatment signal carried by `T` is highly aligned with the outcome nuisance, making `beta * T` and `mu(X)` difficult to separate in the regression fit. As `k` increases, `pi(x)` is still correlated with `mu(x)`, but it is no longer identical, so the collinearity between the treatment-related structure and the outcome nuisance weakens.
+- The oracle AIPW beta benchmark stays essentially flat across the three settings, so the main change is still happening in how learnable and separable the nuisance and target components are for the neural estimator, rather than in the oracle target itself.
+- Taken together, the corrected absolute-value family suggests that nuisance difficulty alone is not the right explanatory variable. What matters much more here is the overlap between `mu(X)` and the systematic part of `T`.
 
 Generated figures:
 

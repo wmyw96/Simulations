@@ -655,6 +655,7 @@ def _plot_family_15_pi_complexity(
     line_specs = [
         ("oracle_aipw", "beta_hat_mse", "Oracle AIPW beta", COLOR_BANK["myred"], "-"),
         ("dml_nn", "beta_hat_mse", "DML AIPW beta", COLOR_BANK["myorange"], "-"),
+        ("dml_nn", "beta_init_mse", "NN joint LSE beta", COLOR_BANK["mygreen"], "-"),
         ("dml_nn", "mu_mse", "DML mu", COLOR_BANK["myblue"], "--"),
         ("dml_nn", "pi_mse", "DML pi", COLOR_BANK["mylightblue"], "--"),
     ]

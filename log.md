@@ -189,3 +189,7 @@
 - Added Experiment `1.5.3`, correcting the `1.5.2` family to use `sign(sin(2 pi x)) * |sin(k pi x)|` for `k in {2, 4, 8}` while keeping `n = 1024` and `lambda_mu = lambda_pi = 2e-5`.
 - Extended the function registry and experiment-id tests for the corrected absolute-value family and reran the `1.5` comparison with `30` trials per treatment-regression choice.
 - Generated `examples/plm/figs/1.5/1.5.3_pi_complexity_mse_comparison.png` and documented the corrected results in `examples/plm/exp_log.md`.
+
+## 2026-04-20 15:30:00 EDT
+
+- Updated the `1.5.3` comparison to include the joint least-squares beta curve and added an interpretation note explaining that the main driver appears to be the overlap between `mu(X)` and the systematic part of `T`, not the standalone difficulty of estimating `pi(X)`.
