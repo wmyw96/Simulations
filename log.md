@@ -245,6 +245,11 @@
 - Audited the `1.5.10` beta formulas and found the main explanation for the counterintuitive trend: as the rough `g_2` coefficient grows, the estimated DML denominator `E[T (T - \hat{\pi}(X))]` increases sharply because the learned treatment model leaves more structured signal in the residual.
 - In a small replay of the `1.5.10` family, the average DML denominator roughly doubled from `0.111` to `0.264`, while the nuisance cross-term stayed small, so the final beta ratio became better conditioned even though the pointwise `\pi` MSE got worse.
 
+## 2026-04-21 00:05:00 EDT
+
+- Recorded the follow-up diagnosis that this denominator inflation is itself a sign that the current `1.5.10` family is not the right stress test for the intended question.
+- Since `u ~ Unif[-0.5, 0.5]`, the target denominator should stay near `Var(u) = 1/12 ≈ 0.0833` under a good nuisance fit. The fact that the learned DML denominator moves far above that means the residual `T - \hat{\pi}(X)` is still carrying structured signal, so the experiment is changing identification strength instead of only changing nuisance difficulty.
+
 ## 2026-04-20 22:05:00 EDT
 
 - Added a design note for the next `1.5` direction: split `mu` into a dominant smooth component `g1` and a small-amplitude rough component `g2`, then build `pi` so the rough `g2` direction is amplified relative to `mu`.
