@@ -93,6 +93,40 @@ def make_plm_oracle_estimator(method_config: dict) -> PLMOracleAIPWEstimator:
     )
 
 
+def _make_trial_seeded_dml_factory(method_config: dict):
+    """Return a factory that injects the trial seed into the DML estimator config."""
+    base_config = deepcopy(method_config)
+
+    def factory(*, trial_seed: int | None = None) -> PLMDMLEstimator:
+        config = deepcopy(base_config)
+        if trial_seed is not None:
+            config["seed"] = int(trial_seed)
+        return make_plm_dml_estimator(config)
+
+    return factory
+
+
+def _make_fixed_dml_factory(method_config: dict):
+    """Return a factory for a fixed-seed DML estimator."""
+    base_config = deepcopy(method_config)
+
+    def factory() -> PLMDMLEstimator:
+        return make_plm_dml_estimator(deepcopy(base_config))
+
+    return factory
+
+
+def _make_oracle_factory(method_config: dict):
+    """Return a factory for the oracle estimator with a uniform call signature."""
+    base_config = deepcopy(method_config)
+
+    def factory(*, trial_seed: int | None = None) -> PLMOracleAIPWEstimator:
+        del trial_seed
+        return make_plm_oracle_estimator(deepcopy(base_config))
+
+    return factory
+
+
 def build_experiment_1_1(
     exp_id: str,
     n_trials: int,
@@ -108,6 +142,7 @@ def build_experiment_1_1(
         seed_offset=seed_offset,
         device=device,
         result_root=result_root,
+        trial_seeded_dml=False,
     )
 
 
@@ -126,6 +161,7 @@ def build_experiment_1_2(
         seed_offset=seed_offset,
         device=device,
         result_root=result_root,
+        trial_seeded_dml=False,
     )
 
 
@@ -135,8 +171,45 @@ def build_experiment_1_3(
     seed_offset: int = 0,
     device: str = "cpu",
     result_root: str | Path = DEFAULT_RESULT_ROOT,
-) -> PLMEvaluator:
+    ) -> PLMEvaluator:
     """Build evaluator configuration for experiment family 1.3."""
+    return build_random_beta_experiment(
+        exp_id=exp_id,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        device=device,
+        result_root=result_root,
+        trial_seeded_dml=False,
+    )
+
+
+def build_experiment_1_3_2(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build evaluator configuration for the trial-seeded 1.3.2 experiment."""
+    return build_random_beta_experiment(
+        exp_id=exp_id,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        device=device,
+        result_root=result_root,
+        trial_seeded_dml=True,
+    )
+
+
+def build_random_beta_experiment(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+    trial_seeded_dml: bool = False,
+) -> PLMEvaluator:
+    """Build a random-beta sine/sine PLM experiment."""
     dgp_param_grid = {
         "d": 1,
         "func_mu_name": "sin_2pi_first_coordinate",
@@ -162,6 +235,9 @@ def build_experiment_1_3(
         "seed": seed_offset,
         "d": 1,
     }
+    if trial_seeded_dml:
+        dml_method_config["seed_mode"] = "trial_seed"
+        dml_method_config.pop("seed", None)
     oracle_method_config = {
         "func_mu_name": "sin_2pi_first_coordinate",
         "func_pi_name": "sin_2pi_first_coordinate",
@@ -173,14 +249,17 @@ def build_experiment_1_3(
             "is_oracle": False,
             "factory_name": "make_plm_dml_estimator",
             "method_config": deepcopy(dml_method_config),
-            "factory": lambda cfg=deepcopy(dml_method_config): make_plm_dml_estimator(cfg),
+            "accepts_trial_seed": trial_seeded_dml,
+            "factory": _make_trial_seeded_dml_factory(dml_method_config)
+            if trial_seeded_dml
+            else _make_fixed_dml_factory(dml_method_config),
         },
         {
             "name": "oracle_aipw",
             "is_oracle": True,
             "factory_name": "make_plm_oracle_estimator",
             "method_config": deepcopy(oracle_method_config),
-            "factory": lambda cfg=deepcopy(oracle_method_config): make_plm_oracle_estimator(cfg),
+            "factory": _make_oracle_factory(oracle_method_config) if trial_seeded_dml else (lambda cfg=deepcopy(oracle_method_config): make_plm_oracle_estimator(cfg)),
         },
     ]
 
@@ -203,6 +282,7 @@ def build_plm_sine_experiment(
     seed_offset: int = 0,
     device: str = "cpu",
     result_root: str | Path = DEFAULT_RESULT_ROOT,
+    trial_seeded_dml: bool = False,
 ) -> PLMEvaluator:
     """Build a sine/sine PLM experiment with configurable beta."""
     dgp_param_grid = {
@@ -228,6 +308,9 @@ def build_plm_sine_experiment(
         "seed": seed_offset,
         "d": 1,
     }
+    if trial_seeded_dml:
+        dml_method_config["seed_mode"] = "trial_seed"
+        dml_method_config.pop("seed", None)
     oracle_method_config = {
         "func_mu_name": "sin_2pi_first_coordinate",
         "func_pi_name": "sin_2pi_first_coordinate",
@@ -239,14 +322,17 @@ def build_plm_sine_experiment(
             "is_oracle": False,
             "factory_name": "make_plm_dml_estimator",
             "method_config": deepcopy(dml_method_config),
-            "factory": lambda cfg=deepcopy(dml_method_config): make_plm_dml_estimator(cfg),
+            "accepts_trial_seed": trial_seeded_dml,
+            "factory": _make_trial_seeded_dml_factory(dml_method_config)
+            if trial_seeded_dml
+            else _make_fixed_dml_factory(dml_method_config),
         },
         {
             "name": "oracle_aipw",
             "is_oracle": True,
             "factory_name": "make_plm_oracle_estimator",
             "method_config": deepcopy(oracle_method_config),
-            "factory": lambda cfg=deepcopy(oracle_method_config): make_plm_oracle_estimator(cfg),
+            "factory": _make_oracle_factory(oracle_method_config) if trial_seeded_dml else (lambda cfg=deepcopy(oracle_method_config): make_plm_oracle_estimator(cfg)),
         },
     ]
 
@@ -268,6 +354,15 @@ EXPERIMENT_FAMILY_BUILDERS = {
     "1.3": build_experiment_1_3,
 }
 
+EXPERIMENT_ID_BUILDERS = {
+    "1.1_1": build_experiment_1_1,
+    "1.1_2": build_experiment_1_1,
+    "1.2_1": build_experiment_1_2,
+    "1.2_2": build_experiment_1_2,
+    "1.3_1": build_experiment_1_3,
+    "1.3_2": build_experiment_1_3_2,
+}
+
 
 def build_evaluator_from_exp_id(
     exp_id: str,
@@ -278,10 +373,14 @@ def build_evaluator_from_exp_id(
 ) -> PLMEvaluator:
     """Build an evaluator from the experiment family encoded in exp_id."""
     storage_id, _ = normalize_exp_id(exp_id)
-    family = storage_id.split("_", 1)[0]
-    if family not in EXPERIMENT_FAMILY_BUILDERS:
-        raise ValueError(f"Unknown experiment family '{family}'.")
-    return EXPERIMENT_FAMILY_BUILDERS[family](
+    if storage_id in EXPERIMENT_ID_BUILDERS:
+        builder = EXPERIMENT_ID_BUILDERS[storage_id]
+    else:
+        family = storage_id.split("_", 1)[0]
+        if family not in EXPERIMENT_FAMILY_BUILDERS:
+            raise ValueError(f"Unknown experiment family '{family}'.")
+        builder = EXPERIMENT_FAMILY_BUILDERS[family]
+    return builder(
         exp_id=storage_id,
         n_trials=n_trials,
         seed_offset=seed_offset,

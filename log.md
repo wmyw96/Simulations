@@ -123,3 +123,10 @@
 - Continued Experiment `1.3.1` from the saved 30-trial checkpoint to `100` trials per sample size using the evaluator's resume mechanism.
 - Regenerated the unified `1.3.1` scaling figure from the 100-trial averages.
 - Updated the `1.3.1` section of `examples/plm/exp_log.md` so the table and interpretation now reflect the more stable 100-trial run.
+
+## 2026-04-19 23:40:00 EDT
+
+- Tightened `PLMEvaluator` resume behavior so existing result files are validated against the requested experiment definition before new trials are appended.
+- Updated the resume path so top-level result metadata such as `n_trials` is refreshed when a run is extended, instead of leaving stale headers in the saved JSON.
+- Added trial-seeded DML support for exact experiment ids like `1.3.2`, while preserving the archived fixed-seed behavior for `1.3.1`.
+- Reconstructed `simulation_results/plm/1.3_1.json` back to the original 30-trial archived run, reran the corrected random-seed experiment as `1.3_2.json` with 100 trials, regenerated the `1.3.1` and `1.3.2` unified figures, and rewrote the `1.3` sections of `examples/plm/exp_log.md`.

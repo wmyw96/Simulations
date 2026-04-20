@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import json
+
 from examples.plm.experiment_defs import build_evaluator_from_exp_id, build_experiment_1_1, normalize_exp_id
 
 
@@ -46,6 +48,15 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(evaluator_13.dgp_param_grid["beta_sampler_name"], "uniform")
         self.assertEqual(evaluator_13.dgp_param_grid["beta_low"], -0.5)
         self.assertEqual(evaluator_13.dgp_param_grid["beta_high"], 0.5)
+        self.assertFalse(evaluator_13.estimators[0]["accepts_trial_seed"])
+
+        evaluator_13_2 = build_evaluator_from_exp_id(
+            exp_id="1.3.2",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertTrue(evaluator_13_2.estimators[0]["accepts_trial_seed"])
 
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -59,14 +70,17 @@ class PLMEvaluatorTests(unittest.TestCase):
             )
             evaluator.dgp_param_grid["n"] = [16]
             evaluator.dgp_param_grid["n_test"] = 32
-            evaluator.estimators[0]["method_config"]["N"] = 8
-            evaluator.estimators[0]["method_config"]["niter"] = 2
-            evaluator.estimators[0]["method_config"]["batch_size"] = 8
-            evaluator.estimators[0]["method_config"]["d"] = 1
-            evaluator.estimators[0]["factory"] = lambda cfg=dict(evaluator.estimators[0]["method_config"]): __import__(
+            dml_config = dict(evaluator.estimators[0]["method_config"])
+            dml_config["N"] = 8
+            dml_config["niter"] = 2
+            dml_config["batch_size"] = 8
+            dml_config["d"] = 1
+            evaluator.estimators[0]["method_config"] = dml_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(dml_config): __import__(
                 "examples.plm.experiment_defs",
                 fromlist=["make_plm_dml_estimator"],
-            ).make_plm_dml_estimator(cfg)
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            evaluator.estimators[0]["accepts_trial_seed"] = True
 
             first_results = evaluator.run()
             self.assertEqual(len(first_results["trial_results"]), 2)
@@ -98,6 +112,109 @@ class PLMEvaluatorTests(unittest.TestCase):
             self.assertIn("mu_pi_product_true_mean", first_trial)
             self.assertIn("mu_pi_product_mse", first_trial)
 
+    def test_resume_updates_n_trials_metadata_and_reuses_new_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_root = Path(temp_dir) / "simulation_results"
+            evaluator = build_experiment_1_1(
+                exp_id="1.1_meta",
+                n_trials=1,
+                seed_offset=7,
+                device="cpu",
+                result_root=result_root,
+            )
+            evaluator.dgp_param_grid["n"] = [16]
+            evaluator.dgp_param_grid["n_test"] = 32
+            dml_config = dict(evaluator.estimators[0]["method_config"])
+            dml_config["N"] = 8
+            dml_config["niter"] = 2
+            dml_config["batch_size"] = 8
+            dml_config["d"] = 1
+            evaluator.estimators[0]["method_config"] = dml_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(dml_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_estimator"],
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            evaluator.estimators[0]["accepts_trial_seed"] = True
+            evaluator.run()
+
+            resumed = build_experiment_1_1(
+                exp_id="1.1_meta",
+                n_trials=3,
+                seed_offset=7,
+                device="cpu",
+                result_root=result_root,
+            )
+            resumed.dgp_param_grid["n"] = [16]
+            resumed.dgp_param_grid["n_test"] = 32
+            resumed_config = dict(resumed.estimators[0]["method_config"])
+            resumed_config["N"] = 8
+            resumed_config["niter"] = 2
+            resumed_config["batch_size"] = 8
+            resumed_config["d"] = 1
+            resumed.estimators[0]["method_config"] = resumed_config
+            resumed.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(resumed_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_estimator"],
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            resumed.estimators[0]["accepts_trial_seed"] = True
+
+            results = resumed.run()
+            self.assertEqual(results["n_trials"], 3)
+            self.assertEqual(len(results["trial_results"]), 3)
+
+            saved = json.loads(resumed.result_path.read_text())
+            self.assertEqual(saved["n_trials"], 3)
+
+    def test_run_rejects_existing_results_with_mismatched_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_root = Path(temp_dir) / "simulation_results"
+            evaluator = build_experiment_1_1(
+                exp_id="1.1_validate",
+                n_trials=1,
+                seed_offset=11,
+                device="cpu",
+                result_root=result_root,
+            )
+            evaluator.dgp_param_grid["n"] = [16]
+            evaluator.dgp_param_grid["n_test"] = 32
+            dml_config = dict(evaluator.estimators[0]["method_config"])
+            dml_config["N"] = 8
+            dml_config["niter"] = 2
+            dml_config["batch_size"] = 8
+            dml_config["d"] = 1
+            evaluator.estimators[0]["method_config"] = dml_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(dml_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_estimator"],
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            evaluator.estimators[0]["accepts_trial_seed"] = True
+            evaluator.run()
+
+            mismatched = build_experiment_1_1(
+                exp_id="1.1_validate",
+                n_trials=2,
+                seed_offset=11,
+                device="cpu",
+                result_root=result_root,
+            )
+            mismatched.dgp_param_grid["n"] = [16]
+            mismatched.dgp_param_grid["n_test"] = 64
+
+            with self.assertRaises(ValueError):
+                mismatched.run()
+
+    def test_trial_seeded_dml_factory_uses_trial_specific_seed(self) -> None:
+        evaluator = build_evaluator_from_exp_id(
+            exp_id="1.3.2",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        estimator_one = evaluator.estimators[0]["factory"](trial_seed=3)
+        estimator_two = evaluator.estimators[0]["factory"](trial_seed=4)
+        self.assertEqual(estimator_one.seed, 3)
+        self.assertEqual(estimator_two.seed, 4)
+
     def test_random_beta_family_records_realized_beta(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result_root = Path(temp_dir) / "simulation_results"
@@ -110,14 +227,17 @@ class PLMEvaluatorTests(unittest.TestCase):
             )
             evaluator.dgp_param_grid["n"] = [16]
             evaluator.dgp_param_grid["n_test"] = 32
-            evaluator.estimators[0]["method_config"]["N"] = 8
-            evaluator.estimators[0]["method_config"]["niter"] = 2
-            evaluator.estimators[0]["method_config"]["batch_size"] = 8
-            evaluator.estimators[0]["method_config"]["d"] = 1
-            evaluator.estimators[0]["factory"] = lambda cfg=dict(evaluator.estimators[0]["method_config"]): __import__(
+            dml_config = dict(evaluator.estimators[0]["method_config"])
+            dml_config["N"] = 8
+            dml_config["niter"] = 2
+            dml_config["batch_size"] = 8
+            dml_config["d"] = 1
+            evaluator.estimators[0]["method_config"] = dml_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(dml_config): __import__(
                 "examples.plm.experiment_defs",
                 fromlist=["make_plm_dml_estimator"],
-            ).make_plm_dml_estimator(cfg)
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            evaluator.estimators[0]["accepts_trial_seed"] = True
 
             results = evaluator.run()
             trial_record = results["trial_results"][0]

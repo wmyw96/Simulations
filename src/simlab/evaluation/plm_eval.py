@@ -59,6 +59,8 @@ class PLMEvaluator(Evaluator):
     def run(self) -> dict[str, Any]:
         """Run the configured experiment, resuming from disk when possible."""
         self.results = self._load_results()
+        metadata_changed = self._refresh_loaded_results_metadata(self.results)
+        results_changed = metadata_changed
         completed_trials = {
             (self._config_signature(record["dgp_config"]), int(record["trial_id"]))
             for record in self.results["trial_results"]
@@ -79,8 +81,11 @@ class PLMEvaluator(Evaluator):
                 )
                 self.results["trial_results"].append(trial_record)
                 completed_trials.add((config_signature, trial_id))
+                results_changed = True
                 self.save()
 
+        if results_changed:
+            self.save()
         return self.results
 
     def save(self, path: str | None = None) -> None:
@@ -159,7 +164,7 @@ class PLMEvaluator(Evaluator):
 
         estimator_results = []
         for estimator_spec in self.estimators:
-            estimator = estimator_spec["factory"]()
+            estimator = self._instantiate_estimator(estimator_spec=estimator_spec, trial_seed=trial_seed)
             start_time = time.perf_counter()
             fit_data = data_oracle if estimator_spec["is_oracle"] else data_observed
             fit_result = estimator.fit(fit_data)
@@ -243,7 +248,9 @@ class PLMEvaluator(Evaluator):
         """Load persisted results or create a fresh result container."""
         if self.result_path.exists():
             with self.result_path.open("r", encoding="utf-8") as handle:
-                return json.load(handle)
+                loaded = json.load(handle)
+            self._validate_loaded_results(loaded)
+            return loaded
 
         return {
             "exp_name": self.exp_name,
@@ -263,6 +270,38 @@ class PLMEvaluator(Evaluator):
             ],
             "trial_results": [],
         }
+
+    def _refresh_loaded_results_metadata(self, results: dict[str, Any]) -> bool:
+        """Refresh mutable top-level metadata after loading a resumable result file."""
+        changed = False
+        completed_counts = {}
+        for trial in results.get("trial_results", []):
+            signature = self._config_signature(trial["dgp_config"])
+            completed_counts[signature] = completed_counts.get(signature, 0) + 1
+
+        target_n_trials = max(
+            int(results.get("n_trials", 0)),
+            int(self.n_trials),
+            max(completed_counts.values(), default=0),
+        )
+        if int(results.get("n_trials", 0)) != target_n_trials:
+            results["n_trials"] = target_n_trials
+            changed = True
+
+        expected_specs = self._serializable_estimator_specs()
+        if self._normalize_loaded_estimator_specs(results.get("estimator_specs", [])) != expected_specs:
+            results["estimator_specs"] = expected_specs
+            changed = True
+
+        if results.get("dgp_param_grid") != deepcopy(self.dgp_param_grid):
+            results["dgp_param_grid"] = deepcopy(self.dgp_param_grid)
+            changed = True
+
+        if results.get("seed_offset") != self.seed_offset:
+            results["seed_offset"] = self.seed_offset
+            changed = True
+
+        return changed
 
     @staticmethod
     def _config_signature(config: dict[str, Any]) -> str:
@@ -312,7 +351,68 @@ class PLMEvaluator(Evaluator):
             "factory_name": str(spec.get("factory_name", getattr(factory, "__name__", "factory"))),
             "is_oracle": bool(spec["is_oracle"]),
             "method_config": deepcopy(spec.get("method_config", {})),
+            "accepts_trial_seed": bool(spec.get("accepts_trial_seed", False)),
         }
+
+    def _instantiate_estimator(self, estimator_spec: dict[str, Any], trial_seed: int) -> Any:
+        """Build an estimator instance, optionally passing a trial-specific seed."""
+        factory = estimator_spec["factory"]
+        if estimator_spec["accepts_trial_seed"]:
+            return factory(trial_seed=trial_seed)
+        return factory()
+
+    def _serializable_estimator_specs(self) -> list[dict[str, Any]]:
+        """Return the serializable estimator spec metadata used in result headers."""
+        serializable_specs = []
+        for spec in self.estimators:
+            item = {
+                "name": spec["name"],
+                "is_oracle": spec["is_oracle"],
+                "factory_name": spec["factory_name"],
+                "method_config": deepcopy(spec["method_config"]),
+            }
+            if spec["accepts_trial_seed"]:
+                item["accepts_trial_seed"] = True
+            serializable_specs.append(item)
+        return serializable_specs
+
+    def _validate_loaded_results(self, results: dict[str, Any]) -> None:
+        """Validate that an on-disk result file matches the requested experiment."""
+        expected = {
+            "exp_name": self.exp_name,
+            "exp_id": self.exp_id,
+            "dgp_generator_name": getattr(self.dgp_generator, "__name__", "dgp_generator"),
+            "dgp_param_grid": deepcopy(self.dgp_param_grid),
+            "seed_offset": self.seed_offset,
+        }
+        for key, expected_value in expected.items():
+            observed_value = results.get(key)
+            if observed_value != expected_value:
+                raise ValueError(
+                    f"Existing result file '{self.result_path}' does not match the requested "
+                    f"experiment definition for key '{key}'."
+                )
+        if self._normalize_loaded_estimator_specs(results.get("estimator_specs", [])) != self._serializable_estimator_specs():
+            raise ValueError(
+                f"Existing result file '{self.result_path}' does not match the requested "
+                "experiment definition for key 'estimator_specs'."
+            )
+
+    @staticmethod
+    def _normalize_loaded_estimator_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalize estimator specs loaded from disk for compatibility checks."""
+        normalized = []
+        for spec in specs:
+            item = {
+                "name": spec["name"],
+                "is_oracle": spec["is_oracle"],
+                "factory_name": spec["factory_name"],
+                "method_config": deepcopy(spec["method_config"]),
+            }
+            if spec.get("accepts_trial_seed"):
+                item["accepts_trial_seed"] = True
+            normalized.append(item)
+        return normalized
 
 
 def _as_column(values: np.ndarray, label: str) -> np.ndarray:

@@ -381,7 +381,7 @@ Generated figures:
 
 ## 1.3.1
 
-Experiment `1.3.1`, stored in the simulation artifact `1.3_1`.
+Archived preliminary run for Experiment `1.3.1`, stored in the simulation artifact `1.3_1`.
 
 ### Goal
 
@@ -391,7 +391,76 @@ This experiment keeps the same one-dimensional sine-sine partial linear model as
 beta ~ Unif[-0.5, 0.5],
 ```
 
-and to summarize the scaling behavior of the main beta and nuisance quantities in a single unified plot.
+and to summarize the scaling behavior of the main beta and nuisance quantities in a single unified plot. This archived run was the first implementation of the random-beta design and is kept for reference.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 1`
+- Outcome regression: `mu(x) = sin(2 pi x)`
+- Treatment regression: `pi(x) = sin(2 pi x)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = 0.5`
+- Outcome noise scale: `sigma_eps = 0.5`
+- Training sample sizes: `n in {256, 512, 1024, 2048}`
+- Test sample size: `n_test = 10000`
+- Number of trials per sample size: `30`
+
+Method design:
+
+- Compared methods: Neural DML and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 1e-4`
+- Treatment-network regularization: `lambda_pi = 1e-4`
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+Design note:
+
+- The evaluator seeds each trial by its trial index. As a result, for a fixed trial id the same realized `beta` value is reused across the different sample sizes. This keeps the cross-`n` comparison aligned at the trial level while still averaging over a broad range of coefficient values across the 30 trials.
+- In this preliminary run, the neural DML estimator used a fixed PyTorch seed across trials. That means the Monte Carlo variation comes from the sampled data and coefficient draws, but not from trial-to-trial variation in network initialization or DataLoader shuffling.
+
+### Results
+
+The experiment was run with `30` trials for each sample size in `{256, 512, 1024, 2048}`. Across the 30 seeded trials, the realized coefficients ranged from approximately `-0.4896` to `0.4670`, with an average close to zero (`0.000863`).
+
+Average mean squared errors:
+
+| n | Oracle AIPW Beta MSE | DML AIPW Beta MSE | Joint LSE Beta MSE | DML Mu MSE | DML Pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 256 | 0.004472 | 0.156432 | 0.024272 | 0.039191 | 0.027801 |
+| 512 | 0.004564 | 0.013441 | 0.023545 | 0.029614 | 0.016700 |
+| 1024 | 0.002332 | 0.006339 | 0.007433 | 0.014810 | 0.008994 |
+| 2048 | 0.000933 | 0.003363 | 0.002195 | 0.007766 | 0.005506 |
+
+Main observations:
+
+- This preliminary 30-trial run was useful for smoke-testing the random-beta pipeline, but its DML curves are visibly noisier than we would like for a reference figure.
+- The oracle AIPW benchmark decreases with sample size as expected, and the nuisance errors also shrink with `n`.
+- The DML AIPW estimate shows the largest instability at `n = 256`, which is one of the reasons this run is archived rather than treated as the preferred reference.
+
+Generated figure:
+
+- `examples/plm/figs/1.3/1.3.1_unified_mse_scaling.png`
+
+## 1.3.2
+
+Corrected follow-up run for Experiment `1.3.2`, stored in the simulation artifact `1.3_2`.
+
+### Goal
+
+This experiment repeats the random-beta setting of `1.3.1`, but fixes two bookkeeping issues in the simulation framework:
+
+- result files are now validated before a resume appends new trials,
+- the neural DML estimator now uses trial-specific PyTorch randomness instead of a single fixed training seed across the whole experiment.
+
+The goal is to provide the clean reference record for the random-beta design.
 
 ### Setting and design
 
@@ -423,29 +492,30 @@ Method design:
 
 Design note:
 
-- The evaluator seeds each trial by its trial index. As a result, for a fixed trial id the same realized `beta` value is reused across the different sample sizes. This keeps the cross-`n` comparison aligned at the trial level while still averaging over a broad range of coefficient values across the 100 trials.
+- The evaluator still uses common random numbers across sample sizes: for a fixed trial id, the same realized `beta` is reused across `n`.
+- Unlike `1.3.1`, the neural DML estimator now receives a trial-specific PyTorch seed equal to the trial seed, so the 100-trial average includes both data randomness and trial-to-trial training randomness.
 
 ### Results
 
-The experiment was run with `100` independent trials for each sample size in `{256, 512, 1024, 2048}`. Across the 100 seeded trials, the realized coefficients ranged from approximately `-0.4896` to `0.4890`, with an average of `-0.0262`.
+The experiment was run with `100` trials for each sample size in `{256, 512, 1024, 2048}`. Across the 100 seeded trials, the realized coefficients ranged from approximately `-0.4896` to `0.4890`, with an average of `-0.0262`.
 
 Average mean squared errors:
 
 | n | Oracle AIPW Beta MSE | DML AIPW Beta MSE | Joint LSE Beta MSE | DML Mu MSE | DML Pi MSE |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 256 | 0.012023 | 0.068101 | 0.039185 | 0.047665 | 0.029641 |
-| 512 | 0.005071 | 0.029758 | 0.014251 | 0.023570 | 0.015365 |
-| 1024 | 0.001822 | 0.005341 | 0.005469 | 0.012632 | 0.008637 |
-| 2048 | 0.000941 | 0.003852 | 0.002547 | 0.008322 | 0.005465 |
+| 256 | 0.012023 | 0.061531 | 0.031601 | 0.049235 | 0.028331 |
+| 512 | 0.005071 | 0.012846 | 0.019718 | 0.027730 | 0.016451 |
+| 1024 | 0.001822 | 0.006444 | 0.007043 | 0.014507 | 0.009335 |
+| 2048 | 0.000941 | 0.004376 | 0.002716 | 0.008607 | 0.006274 |
 
 Main observations:
 
-- The 100-trial averages give a much smoother picture of the scaling behavior than the earlier 30-trial run. All five curves now decrease monotonically with the sample size.
+- The 100-trial averages give a much smoother picture of the scaling behavior than the archived `1.3.1` run.
 - The oracle AIPW benchmark remains the strongest line throughout the experiment, with beta MSE falling from about `1.20e-2` at `n = 256` to `9.41e-4` at `n = 2048`.
-- The neural DML AIPW estimator is still the noisiest beta curve, but its scaling is now much clearer: the average beta MSE decreases from `0.068101` at `n = 256` to `0.029758`, `0.005341`, and `0.003852` as `n` doubles.
-- The neural-network joint least-squares beta estimate is more stable than DML AIPW at the smaller sample sizes and stays competitive at the larger ones, with average beta MSE `0.039185`, `0.014251`, `0.005469`, and `0.002547`.
-- The nuisance curves also improve smoothly with the sample size. The `mu` error remains above the `pi` error at every `n`, but both decrease steadily on the `log_2` scale over this range.
+- The neural DML AIPW estimator is still the noisiest beta curve, but its scaling is now clearer and more stable under the corrected seed policy: the average beta MSE decreases from `0.061531` at `n = 256` to `0.012846`, `0.006444`, and `0.004376` as `n` doubles.
+- The neural-network joint least-squares beta estimate is more stable than DML AIPW at the smaller sample sizes and remains competitive at the larger ones, with average beta MSE `0.031601`, `0.019718`, `0.007043`, and `0.002716`.
+- The nuisance curves also improve steadily with the sample size. The `mu` error remains above the `pi` error at every `n`, but both decrease substantially over the observed range.
 
 Generated figure:
 
-- `examples/plm/figs/1.3/1.3.1_unified_mse_scaling.png`
+- `examples/plm/figs/1.3/1.3.2_unified_mse_scaling.png`
