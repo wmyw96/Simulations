@@ -20,6 +20,7 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(normalize_exp_id("1.5.1"), ("1.5_1", "1.5.1"))
         self.assertEqual(normalize_exp_id("1.6.1"), ("1.6_1", "1.6.1"))
         self.assertEqual(normalize_exp_id("1.6.2"), ("1.6_2", "1.6.2"))
+        self.assertEqual(normalize_exp_id("1.6.3"), ("1.6_3", "1.6.3"))
 
         evaluator = build_evaluator_from_exp_id(
             exp_id="1.1.2",
@@ -469,6 +470,34 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertTrue(evaluator_16_2.estimators[0]["accepts_trial_seed"])
         self.assertTrue(evaluator_16_2.estimators[1]["accepts_trial_seed"])
         self.assertTrue(evaluator_16_2.estimators[2]["accepts_dgp_config"])
+
+        evaluator_16_3 = build_evaluator_from_exp_id(
+            exp_id="1.6.3",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_16_3.exp_id, "1.6_3")
+        self.assertEqual(evaluator_16_3.result_path.name, "1.6_3.json")
+        self.assertEqual(evaluator_16_3.dgp_param_grid["d"], 2)
+        self.assertEqual(evaluator_16_3.dgp_param_grid["func_mu_name"], "experiment_1_6_3_mu")
+        self.assertEqual(
+            evaluator_16_3.dgp_param_grid["func_pi_name"],
+            [
+                "experiment_1_6_3_pi_1",
+                "experiment_1_6_3_pi_2",
+                "experiment_1_6_3_pi_3",
+            ],
+        )
+        self.assertAlmostEqual(evaluator_16_3.dgp_param_grid["sigma_u"], 3.0**0.5)
+        self.assertAlmostEqual(evaluator_16_3.dgp_param_grid["sigma_eps"], 3.0**0.5)
+        self.assertEqual(evaluator_16_3.dgp_param_grid["n"], [1024])
+        self.assertEqual([spec["name"] for spec in evaluator_16_3.estimators], ["dml_nn", "plm_minimax_debias", "oracle_aipw"])
+        self.assertEqual(evaluator_16_3.estimators[0]["method_config"]["d"], 2)
+        self.assertEqual(evaluator_16_3.estimators[1]["method_config"]["d"], 2)
+        self.assertTrue(evaluator_16_3.estimators[0]["accepts_trial_seed"])
+        self.assertTrue(evaluator_16_3.estimators[1]["accepts_trial_seed"])
+        self.assertTrue(evaluator_16_3.estimators[2]["accepts_dgp_config"])
 
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

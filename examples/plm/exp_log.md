@@ -1779,3 +1779,76 @@ Generated figures:
 
 - `examples/plm/figs/1.6/1.6.2_pi_complexity_mean_mse_comparison.png`
 - `examples/plm/figs/1.6/1.6.2_pi_complexity_median_mse_comparison.png`
+
+## 1.6.3
+
+Experiment `1.6.3`, stored in the simulation artifact `1.6_3`.
+
+### Goal
+
+This experiment keeps the two-dimensional unit-variance setting but changes the frequency convention to the direct signals requested in the latest diagnostic design. The goal is to test whether increasing the amplitude of a shared second-coordinate sine component in the treatment regression worsens DML beta estimation, while comparing against the oracle AIPW estimator and the paper minimax-debias estimator.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 2`
+- Outcome regression:
+  - `mu(x) = sin(2 x_1) + 0.25 sin(6 x_2)`
+- Treatment regression candidates:
+  - `pi_1(x) = sin(2 x_1) + sin(6 x_2)`
+  - `pi_2(x) = sin(2 x_1) + 2 sin(6 x_2)`
+  - `pi_3(x) = sin(2 x_1) + 3 sin(6 x_2)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `10`
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.003041 | 0.008215 | 0.003128 | 0.004340 | 0.571027 | 0.229157 |
+| `pi_2` | 0.003116 | 0.019229 | 0.005086 | 0.002860 | 0.250123 | 0.349541 |
+| `pi_3` | 0.003217 | 0.018763 | 0.005020 | 0.003727 | 0.313485 | 0.296523 |
+
+Median metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.001654 | 0.003181 | 0.001103 | 0.001201 | 0.304145 | 0.230567 |
+| `pi_2` | 0.001675 | 0.012911 | 0.002324 | 0.000527 | 0.228291 | 0.244616 |
+| `pi_3` | 0.001704 | 0.003607 | 0.003067 | 0.001015 | 0.292745 | 0.283299 |
+
+Main observations:
+
+- The DML AIPW beta error is larger once the second-coordinate treatment component is amplified. The mean beta MSE changes as `0.008215 -> 0.019229 -> 0.018763`.
+- The median DML beta MSE is most severe at `pi_2` in this 10-trial run: `0.003181 -> 0.012911 -> 0.003607`. This suggests some finite-sample instability rather than a clean monotone ordering.
+- The right tail grows with the amplified treatment component. The DML beta-MSE maxima are approximately `0.027288`, `0.104141`, and `0.126715` for `pi_1`, `pi_2`, and `pi_3`, respectively.
+- The DML treatment nuisance MSE is mildly non-monotone at 10 trials: `0.229157 -> 0.349541 -> 0.296523` in mean and `0.230567 -> 0.244616 -> 0.283299` in median.
+- The paper minimax-debias estimator remains much closer to oracle than plain DML AIPW in all three configurations. Its mean beta MSE is `0.003128 -> 0.005086 -> 0.005020`, compared with oracle around `0.0030`.
+- The joint least-squares beta estimate remains small in this design and does not show monotone degradation at 10 trials. More trials may be useful if we want to separate systematic behavior from stochastic variation.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.3_pi_complexity_mean_mse_comparison.png`
+- `examples/plm/figs/1.6/1.6.3_pi_complexity_median_mse_comparison.png`
