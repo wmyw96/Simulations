@@ -642,6 +642,16 @@ def _plot_family_15_pi_complexity(
         (func_pi_name, FUNCTION_LABELS.get(func_pi_name, func_pi_name))
         for func_pi_name in evaluator.dgp_param_grid["func_pi_name"]
     ]
+    if display_exp_id == "1.6.9":
+        _plot_family_169_mse_and_grouped_bias_variance(
+            display_exp_id=display_exp_id,
+            fig_dir=fig_dir,
+            evaluator=evaluator,
+            fixed_dgp_config=fixed_dgp_config,
+            pi_specs=pi_specs,
+        )
+        return
+
     x_values = np.arange(len(pi_specs), dtype=float)
     method_specs = [
         ("dml_nn", "DML AIPW beta", COLOR_BANK["myorange"]),
@@ -752,6 +762,145 @@ def _plot_family_15_pi_complexity(
         title_suffix="variance of beta estimation error",
         filename_stem="pi_complexity_beta_variance",
     )
+
+
+def _plot_family_169_mse_and_grouped_bias_variance(
+    *,
+    display_exp_id: str,
+    fig_dir: Path,
+    evaluator,
+    fixed_dgp_config: dict,
+    pi_specs: list[tuple[str, str]],
+) -> None:
+    import matplotlib.pyplot as plt
+
+    x_values = np.arange(len(pi_specs), dtype=float)
+    results = json.loads(evaluator.result_path.read_text())
+    raw_beta_values = evaluator.dgp_param_grid["beta_values"]
+    if isinstance(raw_beta_values, str):
+        beta_values = [float(value) for value in raw_beta_values.split(",")]
+    else:
+        beta_values = [float(value) for value in raw_beta_values]
+    beta_method_specs = [
+        ("dml_nn", "DML AIPW beta", COLOR_BANK["myorange"]),
+        ("plm_minimax_debias", "Minimax debias beta", COLOR_BANK["mypurple"]),
+    ]
+    mse_line_specs = [
+        ("oracle_aipw", "beta_hat_mse", "Oracle AIPW beta", COLOR_BANK["myred"], "-"),
+        ("dml_nn", "beta_hat_mse", "DML AIPW beta", COLOR_BANK["myorange"], "-"),
+        ("plm_minimax_debias", "beta_hat_mse", "Minimax debias beta", COLOR_BANK["mypurple"], "-"),
+        ("dml_nn", "mu_mse", "DML mu", COLOR_BANK["myblue"], "--"),
+        ("dml_nn", "pi_mse", "DML pi", COLOR_BANK["mylightblue"], "--"),
+    ]
+
+    per_pi_records = []
+    for func_pi_name, label in pi_specs:
+        param_config = {
+            **fixed_dgp_config,
+            "func_pi_name": func_pi_name,
+        }
+        config_signature = evaluator._config_signature(param_config)
+        matching_trials = [
+            trial
+            for trial in results["trial_results"]
+            if evaluator._config_signature(trial["dgp_config"]) == config_signature
+        ]
+        per_pi_records.append((label, matching_trials))
+
+    mse_summary: dict[str, dict[str, list[float]]] = {
+        method_name: defaultdict(list) for method_name, _, _, _, _ in mse_line_specs
+    }
+    grouped_decomposition: dict[str, dict[str, list[float]]] = {
+        method_name: {"bias_sq": [], "variance": []}
+        for method_name, _, _ in beta_method_specs
+    }
+
+    for label, matching_trials in per_pi_records:
+        del label
+        estimator_records_by_method: dict[str, list[dict]] = defaultdict(list)
+        beta_hat_by_method_and_beta = {
+            method_name: {beta_value: [] for beta_value in beta_values}
+            for method_name, _, _ in beta_method_specs
+        }
+        for trial in matching_trials:
+            beta_true = float(trial["beta_true"])
+            for estimator_record in trial["estimator_results"]:
+                method_name = estimator_record["estimator_name"]
+                estimator_records_by_method[method_name].append(estimator_record)
+                if method_name in beta_hat_by_method_and_beta:
+                    beta_hat_by_method_and_beta[method_name][beta_true].append(float(estimator_record["beta_hat"]))
+
+        for method_name, metric_key, _, _color, _linestyle in mse_line_specs:
+            records = estimator_records_by_method.get(method_name, [])
+            if not records:
+                continue
+            if metric_key == "beta_hat_mse":
+                metric_values = [float(record["beta_sq_error"]) for record in records]
+            else:
+                metric_values = [float(record[metric_key]) for record in records]
+            mse_summary[method_name][metric_key].append(float(np.mean(metric_values)))
+
+        for method_name, _, _color in beta_method_specs:
+            bias_terms = []
+            variance_terms = []
+            for beta_value in beta_values:
+                beta_hats = np.asarray(beta_hat_by_method_and_beta[method_name][beta_value], dtype=float)
+                if beta_hats.size == 0:
+                    continue
+                bias_terms.append((float(np.mean(beta_hats)) - beta_value) ** 2)
+                variance_terms.append(float(np.var(beta_hats)))
+            grouped_decomposition[method_name]["bias_sq"].append(float(np.mean(bias_terms)))
+            grouped_decomposition[method_name]["variance"].append(float(np.mean(variance_terms)))
+
+    plt.figure(figsize=(7.6, 4.9))
+    for method_name, metric_key, label, color, linestyle in mse_line_specs:
+        y_values = mse_summary.get(method_name, {}).get(metric_key, [])
+        if not y_values:
+            continue
+        plt.plot(
+            x_values[: len(y_values)],
+            [max(float(value), 1e-16) for value in y_values],
+            color=color,
+            linestyle=linestyle,
+            linewidth=2.4,
+            marker="o",
+            label=label,
+        )
+    plt.yscale("log")
+    plt.xticks(x_values, [label for _, label in pi_specs])
+    plt.xlabel(r"Treatment regression $\pi(x)$")
+    plt.ylabel("Mean MSE across trials")
+    plt.title(f"{display_exp_id}: nuisance and beta MSE")
+    plt.legend()
+    plt.tight_layout()
+    mse_path = fig_dir / f"{display_exp_id}_pi_complexity_requested_mse.png"
+    plt.savefig(mse_path, dpi=220)
+    plt.close()
+    print(f"Saved {mse_path}")
+
+    fig, axes = plt.subplots(1, 2, figsize=(10.6, 4.6), sharex=True)
+    bar_width = 0.36
+    offsets = [-bar_width / 2.0, bar_width / 2.0]
+    for axis, metric_key, title, ylabel in [
+        (axes[0], "bias_sq", "Mean squared bias", "Average squared bias"),
+        (axes[1], "variance", "Mean variance", "Average variance"),
+    ]:
+        for offset, (method_name, label, color) in zip(offsets, beta_method_specs):
+            values = grouped_decomposition[method_name][metric_key]
+            axis.bar(x_values + offset, values, width=bar_width, color=color, label=label)
+        axis.set_yscale("log")
+        axis.set_title(title)
+        axis.set_ylabel(ylabel)
+        axis.set_xticks(x_values)
+        axis.set_xticklabels([label for _, label in pi_specs], rotation=15, ha="right")
+        axis.set_xlabel(r"Treatment regression $\pi(x)$")
+    axes[0].legend()
+    fig.suptitle(f"{display_exp_id}: beta bias-variance decomposition by beta group")
+    fig.tight_layout()
+    bias_variance_path = fig_dir / f"{display_exp_id}_beta_grouped_bias_variance_hist.png"
+    fig.savefig(bias_variance_path, dpi=220)
+    plt.close(fig)
+    print(f"Saved {bias_variance_path}")
 
 
 if __name__ == "__main__":

@@ -2232,3 +2232,78 @@ Generated figures:
 - `examples/plm/figs/1.6/1.6.8_pi_complexity_mean_mse_comparison.png`
 - `examples/plm/figs/1.6/1.6.8_pi_complexity_beta_bias_sq.png`
 - `examples/plm/figs/1.6/1.6.8_pi_complexity_beta_variance.png`
+
+## 1.6.9
+
+Experiment `1.6.9`, stored in the simulation artifact `1.6_9`.
+
+### Goal
+
+This experiment adds the smooth component `sin(x_2)` back into the treatment regression while keeping the high-frequency residual scaling from `1.6.8`. The target coefficient is sampled from a balanced three-point support. The goal is to compare DML AIPW and the paper minimax-debias estimator when the treatment regression shares the smooth outcome component but becomes progressively more dominated by the high-frequency residual.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 2`
+- Shared signal:
+  - `eta(x) = sin(x_2) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`
+- Outcome regression:
+  - `mu(x) = eta(x)`
+- Treatment regression candidates:
+  - `pi_1(x) = sin(x_2) + 4 * 1 * (eta(x) - sin(x_2))`
+  - `pi_2(x) = sin(x_2) + 4 * 2 * (eta(x) - sin(x_2))`
+  - `pi_3(x) = sin(x_2) + 4 * 3 * (eta(x) - sin(x_2))`
+- Trial-level target coefficient: `beta in {-0.5, 0, 0.5}`, balanced by trial seed with `20` trials per beta value for each treatment-regression candidate
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `60` per treatment-regression candidate
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `60` trials for each treatment-regression candidate:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.002228 | 0.006222 | 0.001981 | 0.270178 | 0.363978 |
+| `pi_2` | 0.002267 | 0.004747 | 0.002461 | 0.297006 | 0.410299 |
+| `pi_3` | 0.002323 | 0.011104 | 0.003011 | 0.281403 | 0.503328 |
+
+Grouped bias-variance decomposition over the balanced beta support:
+
+| pi family | DML mean squared bias | DML mean variance | Minimax mean squared bias | Minimax mean variance |
+| --- | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.000914 | 0.005308 | 0.000455 | 0.001526 |
+| `pi_2` | 0.000524 | 0.004223 | 0.001254 | 0.001207 |
+| `pi_3` | 0.000928 | 0.010177 | 0.001999 | 0.001012 |
+
+Main observations:
+
+- The DML treatment nuisance error increases clearly with treatment-regression complexity: mean `pi` MSE changes as `0.363978 -> 0.410299 -> 0.503328`.
+- The DML AIPW beta MSE is not monotone between `pi_1` and `pi_2`, but it becomes substantially larger at `pi_3`: `0.006222 -> 0.004747 -> 0.011104`.
+- The increase in DML beta MSE at `pi_3` is mainly variance-driven. Its grouped variance increases to `0.010177`, while grouped squared bias remains below `0.001`.
+- The paper minimax-debias estimator has lower beta MSE than DML in all three settings. Its MSE increases moderately as the high-frequency residual receives more weight: `0.001981 -> 0.002461 -> 0.003011`.
+- The minimax-debias decomposition shows the opposite bias-variance movement: grouped squared bias increases with the treatment residual scaling, while grouped variance decreases slightly.
+- Oracle AIPW stays stable around `0.0023`, indicating that the extra beta-estimation difficulty is coming from nuisance estimation and debiasing rather than from the oracle score itself.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.9_pi_complexity_requested_mse.png`
+- `examples/plm/figs/1.6/1.6.9_beta_grouped_bias_variance_hist.png`

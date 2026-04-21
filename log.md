@@ -353,3 +353,9 @@
 - Updated the `1.5`/`1.6` pi-complexity visualization path to focus on DML AIPW and paper minimax-debias beta estimators only, removing median-plot generation and joint-LSE curves from the regenerated performance figure.
 - Added separate squared-bias and variance figures for beta estimation error, using trial-level errors `hat_beta - beta_true` so the decomposition remains valid when `beta_true` is sampled independently by trial.
 - Regenerated the `1.6.8` figures and updated the experiment log with the beta MSE, squared-bias, and variance decomposition over the `10` trials.
+
+## 2026-04-21 14:48:08 EDT
+
+- Added experiment `1.6.9`, with `eta(x) = sin(x_2) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`, `mu(x) = eta(x)`, and `pi_k(x) = sin(x_2) + 4k(eta(x) - sin(x_2))` for `k in {1,2,3}`.
+- Added a balanced discrete beta sampler for `beta in {-0.5, 0, 0.5}` and verified that the completed `60`-trial run has `20` trials at each beta value for every treatment-regression candidate.
+- Added requested `1.6.9` figures for MSE and grouped beta bias/variance, then updated the experiment log with the numerical summary from the saved simulation artifact.
