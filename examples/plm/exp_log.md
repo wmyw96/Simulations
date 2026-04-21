@@ -1924,3 +1924,75 @@ Generated figures:
 
 - `examples/plm/figs/1.6/1.6.4_pi_complexity_mean_mse_comparison.png`
 - `examples/plm/figs/1.6/1.6.4_pi_complexity_median_mse_comparison.png`
+
+## 1.6.5
+
+Experiment `1.6.5`, stored in the simulation artifact `1.6_5`.
+
+### Goal
+
+This experiment isolates the rough shared direction by removing the smooth `sin(2 x_1)` component from both the outcome and treatment regressions. The goal is to test whether a pure shared rough signal gives a cleaner monotone deterioration in DML beta estimation as the treatment amplitude increases.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 2`
+- Outcome regression:
+  - `mu(x) = 0.25 sin(6 x_1)`
+- Treatment regression candidates:
+  - `pi_1(x) = sin(6 x_1)`
+  - `pi_2(x) = 2 sin(6 x_1)`
+  - `pi_3(x) = 3 sin(6 x_1)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `10`
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.003002 | 0.006077 | 0.002248 | 0.001422 | 0.220052 | 0.263133 |
+| `pi_2` | 0.003006 | 0.007392 | 0.002413 | 0.003513 | 0.259244 | 0.339013 |
+| `pi_3` | 0.003023 | 0.014634 | 0.003084 | 0.004268 | 0.306927 | 0.351700 |
+
+Median metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.001537 | 0.002741 | 0.001013 | 0.000803 | 0.220809 | 0.240252 |
+| `pi_2` | 0.001487 | 0.003160 | 0.001190 | 0.000658 | 0.226601 | 0.254589 |
+| `pi_3` | 0.001457 | 0.004421 | 0.000989 | 0.003315 | 0.301521 | 0.274701 |
+
+Main observations:
+
+- This rough-only design gives a cleaner monotone DML beta pattern than `1.6.4`. The mean DML beta MSE increases as `0.006077 -> 0.007392 -> 0.014634`, and the median increases as `0.002741 -> 0.003160 -> 0.004421`.
+- The DML nuisance errors also increase overall as the treatment amplitude grows. Mean `mu` MSE changes as `0.220052 -> 0.259244 -> 0.306927`, while mean `pi` MSE changes as `0.263133 -> 0.339013 -> 0.351700`.
+- The high-amplitude setting has the largest DML right tail. The maximum DML beta MSE is about `0.110240` for `pi_3`, compared with `0.029643` for `pi_1` and `0.022185` for `pi_2`.
+- The paper minimax-debias estimator remains close to oracle. Its mean beta MSE is `0.002248 -> 0.002413 -> 0.003084`, while oracle stays around `0.0030`.
+- Joint least squares also worsens in mean from `pi_1` to `pi_3`, although the median is not monotone between `pi_1` and `pi_2`. Overall, this is the most orderly amplitude-stress design in the recent `1.6` sequence.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.5_pi_complexity_mean_mse_comparison.png`
+- `examples/plm/figs/1.6/1.6.5_pi_complexity_median_mse_comparison.png`
