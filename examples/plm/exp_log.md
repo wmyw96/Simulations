@@ -2209,6 +2209,14 @@ Median metrics over `10` trials:
 | `pi_2` | 0.001636 | 0.001093 | 0.001050 | 0.001308 | 0.332055 | 0.279530 |
 | `pi_3` | 0.001695 | 0.008289 | 0.001050 | 0.000668 | 0.280402 | 0.374360 |
 
+Bias-variance decomposition of beta estimation error over `10` trials:
+
+| pi family | DML beta MSE | DML squared bias | DML variance | Minimax beta MSE | Minimax squared bias | Minimax variance |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.004825 | 0.000797 | 0.004028 | 0.003093 | 0.000989 | 0.002104 |
+| `pi_2` | 0.007459 | 0.003547 | 0.003911 | 0.003192 | 0.001245 | 0.001947 |
+| `pi_3` | 0.018328 | 0.000541 | 0.017787 | 0.003526 | 0.001417 | 0.002109 |
+
 Main observations:
 
 - Removing the smooth `sin(x_2)` component from the treatment regression avoids the catastrophic blow-up observed in `1.6.7`. DML AIPW beta MSE remains finite and much smaller across all three settings.
@@ -2216,9 +2224,11 @@ Main observations:
 - The DML treatment nuisance error also increases, especially at the largest scaling. Mean `pi` MSE changes as `0.233958 -> 0.295433 -> 0.839971`, and median `pi` MSE changes as `0.225229 -> 0.279530 -> 0.374360`.
 - The DML right tail grows with scaling. The maximum DML beta MSE is about `0.024080`, `0.034165`, and `0.076813` for `pi_1`, `pi_2`, and `pi_3`, respectively.
 - The paper minimax-debias estimator stays close to oracle throughout. Its mean beta MSE is `0.003093 -> 0.003192 -> 0.003526`, while oracle is `0.003109 -> 0.003218 -> 0.003340`.
+- The bias-variance decomposition shows that the large DML MSE at `pi_3` is mainly variance-driven: DML variance is `0.017787`, while its squared bias is only `0.000541`. The minimax-debias estimator keeps variance close to `0.002` across all three treatment scalings.
 - Joint least squares does not show the same monotone deterioration as DML AIPW here. This suggests that the main stress in `1.6.8` comes through the AIPW nuisance stage rather than through an obviously exploding joint-LSE beta.
 
 Generated figures:
 
 - `examples/plm/figs/1.6/1.6.8_pi_complexity_mean_mse_comparison.png`
-- `examples/plm/figs/1.6/1.6.8_pi_complexity_median_mse_comparison.png`
+- `examples/plm/figs/1.6/1.6.8_pi_complexity_beta_bias_sq.png`
+- `examples/plm/figs/1.6/1.6.8_pi_complexity_beta_variance.png`

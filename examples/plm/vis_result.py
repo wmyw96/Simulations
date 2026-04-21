@@ -643,45 +643,63 @@ def _plot_family_15_pi_complexity(
         for func_pi_name in evaluator.dgp_param_grid["func_pi_name"]
     ]
     x_values = np.arange(len(pi_specs), dtype=float)
-    line_specs = [
-        ("oracle_aipw", "beta_hat_mse", "Oracle AIPW beta", COLOR_BANK["myred"], "-"),
-        ("dml_nn", "beta_hat_mse", "DML AIPW beta", COLOR_BANK["myorange"], "-"),
-        ("dml_nn", "beta_init_mse", "NN joint LSE beta", COLOR_BANK["mygreen"], "-"),
-        ("plm_minimax_debias", "beta_hat_mse", "Minimax debias beta", COLOR_BANK["mypurple"], "-"),
-        ("dml_nn", "mu_mse", "DML mu", COLOR_BANK["myblue"], "--"),
-        ("dml_nn", "pi_mse", "DML pi", COLOR_BANK["mylightblue"], "--"),
+    method_specs = [
+        ("dml_nn", "DML AIPW beta", COLOR_BANK["myorange"]),
+        ("plm_minimax_debias", "Minimax debias beta", COLOR_BANK["mypurple"]),
     ]
+    results = json.loads(evaluator.result_path.read_text())
 
-    def build_summaries(mode: str) -> list[tuple[str, dict[str, dict[str, float | int]]]]:
-        summaries = []
+    def build_decompositions() -> list[tuple[str, dict[str, dict[str, float | int]]]]:
+        decompositions = []
         for func_pi_name, label in pi_specs:
-            summary = evaluator.query_results(
-                {
-                    **fixed_dgp_config,
-                    "func_pi_name": func_pi_name,
-                },
-                mode=mode,
-            )
-            summaries.append((label, summary))
-        return summaries
+            param_config = {
+                **fixed_dgp_config,
+                "func_pi_name": func_pi_name,
+            }
+            config_signature = evaluator._config_signature(param_config)
+            method_errors = {method_name: [] for method_name, _, _ in method_specs}
+            for trial in results["trial_results"]:
+                if evaluator._config_signature(trial["dgp_config"]) != config_signature:
+                    continue
+                beta_true = float(trial["beta_true"])
+                for estimator_record in trial["estimator_results"]:
+                    method_name = estimator_record["estimator_name"]
+                    if method_name not in method_errors:
+                        continue
+                    method_errors[method_name].append(float(estimator_record["beta_hat"]) - beta_true)
 
-    def plot_summaries(
-        summaries: list[tuple[str, dict[str, dict[str, float | int]]]],
+            method_decomposition: dict[str, dict[str, float | int]] = {}
+            for method_name, errors in method_errors.items():
+                if not errors:
+                    continue
+                error_values = np.asarray(errors, dtype=float)
+                error_mean = float(np.mean(error_values))
+                method_decomposition[method_name] = {
+                    "beta_hat_mse": float(np.mean(error_values**2)),
+                    "beta_hat_bias_sq": error_mean**2,
+                    "beta_hat_variance": float(np.mean((error_values - error_mean) ** 2)),
+                    "num_trials": int(error_values.size),
+                }
+            decompositions.append((label, method_decomposition))
+        return decompositions
+
+    def plot_decomposition_metric(
+        decompositions: list[tuple[str, dict[str, dict[str, float | int]]]],
         *,
-        aggregation_label: str,
+        metric_key: str,
+        y_label: str,
+        title_suffix: str,
         filename_stem: str,
         legacy_alias: bool = False,
     ) -> None:
         plt.figure(figsize=(7.4, 4.8))
-        for method_name, metric_key, label, color, linestyle in line_specs:
+        for method_name, label, color in method_specs:
             y_values = []
             valid_x = []
-            for idx, (_, summary) in enumerate(summaries):
-                if method_name not in summary:
+            for idx, (_, method_decomposition) in enumerate(decompositions):
+                if method_name not in method_decomposition:
                     continue
-                metric_value = float(summary[method_name][metric_key])
-                if metric_value <= 0.0:
-                    continue
+                metric_value = max(float(method_decomposition[method_name][metric_key]), 1e-16)
                 valid_x.append(x_values[idx])
                 y_values.append(metric_value)
             if valid_x:
@@ -689,17 +707,17 @@ def _plot_family_15_pi_complexity(
                     valid_x,
                     y_values,
                     color=color,
-                    linestyle=linestyle,
+                    linestyle="-",
                     linewidth=2.4,
                     marker="o",
                     label=label,
                 )
 
         plt.yscale("log")
-        plt.xticks(x_values, [label for label, _ in summaries])
+        plt.xticks(x_values, [label for label, _ in decompositions])
         plt.xlabel(r"Treatment regression $\pi(x)$")
-        plt.ylabel(f"{aggregation_label} MSE")
-        plt.title(f"{display_exp_id}: effect of pi complexity ({aggregation_label.lower()})")
+        plt.ylabel(y_label)
+        plt.title(f"{display_exp_id}: {title_suffix}")
         plt.legend()
         plt.tight_layout()
         output_path = fig_dir / f"{display_exp_id}_{filename_stem}.png"
@@ -711,18 +729,28 @@ def _plot_family_15_pi_complexity(
         plt.close()
         print(f"Saved {output_path}")
 
-    mean_summaries = build_summaries(mode="summary")
-    median_summaries = build_summaries(mode="median")
-    plot_summaries(
-        mean_summaries,
-        aggregation_label="Mean",
+    decompositions = build_decompositions()
+    plot_decomposition_metric(
+        decompositions,
+        metric_key="beta_hat_mse",
+        y_label="Mean squared error of beta estimate",
+        title_suffix="mean beta MSE across trials",
         filename_stem="pi_complexity_mean_mse_comparison",
         legacy_alias=True,
     )
-    plot_summaries(
-        median_summaries,
-        aggregation_label="Median",
-        filename_stem="pi_complexity_median_mse_comparison",
+    plot_decomposition_metric(
+        decompositions,
+        metric_key="beta_hat_bias_sq",
+        y_label=r"Squared bias of beta estimate",
+        title_suffix="squared bias of beta estimation error",
+        filename_stem="pi_complexity_beta_bias_sq",
+    )
+    plot_decomposition_metric(
+        decompositions,
+        metric_key="beta_hat_variance",
+        y_label=r"Variance of beta estimation error",
+        title_suffix="variance of beta estimation error",
+        filename_stem="pi_complexity_beta_variance",
     )
 
 

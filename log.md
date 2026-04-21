@@ -347,3 +347,9 @@
 - Added experiment `1.6.8`, a two-dimensional unit-variance PLM family with `eta(x) = sin(x_2) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`, `mu(x) = eta(x)`, and `pi_k(x) = 4k(eta(x) - sin(x_2))` for `k in {1, 2, 3}`.
 - Extended the exact-id evaluator tests for `1.6.8`, ran the full `10`-trial comparison with DML, paper minimax-debias, and oracle estimators, and generated separate mean and median figures under `examples/plm/figs/1.6/`.
 - Updated the experiment log with mean/median tables; the residual-treatment design avoids the catastrophic instability of `1.6.7` while still increasing DML beta and treatment-nuisance errors with scaling.
+
+## 2026-04-21 13:05:00 EDT
+
+- Updated the `1.5`/`1.6` pi-complexity visualization path to focus on DML AIPW and paper minimax-debias beta estimators only, removing median-plot generation and joint-LSE curves from the regenerated performance figure.
+- Added separate squared-bias and variance figures for beta estimation error, using trial-level errors `hat_beta - beta_true` so the decomposition remains valid when `beta_true` is sampled independently by trial.
+- Regenerated the `1.6.8` figures and updated the experiment log with the beta MSE, squared-bias, and variance decomposition over the `10` trials.
