@@ -1708,3 +1708,74 @@ Generated figures:
 
 - `examples/plm/figs/1.6/1.6.1_pi_complexity_mean_mse_comparison.png`
 - `examples/plm/figs/1.6/1.6.1_pi_complexity_median_mse_comparison.png`
+
+## 1.6.2
+
+Experiment `1.6.2`, stored in the simulation artifact `1.6_2`.
+
+### Goal
+
+This experiment keeps the two-dimensional unit-variance setup but changes the signal geometry so that both the outcome regression and the treatment regression depend only on the same first-coordinate sine signal. The outcome signal is deliberately weaker, while the treatment signal amplitude increases across the family. The goal is to see whether increasing the strength of the aligned treatment component worsens the beta estimators and whether the paper minimax-debias estimator remains stable.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 2`
+- Outcome regression:
+  - `mu(x) = 0.25 sin(2 pi x_1)`
+- Treatment regression candidates:
+  - `pi_1(x) = sin(2 pi x_1)`
+  - `pi_2(x) = 2 sin(2 pi x_1)`
+  - `pi_3(x) = 3 sin(2 pi x_1)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `10`
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.002989 | 0.006250 | 0.002186 | 0.001321 | 0.279357 | 0.293424 |
+| `pi_2` | 0.002979 | 0.007137 | 0.002864 | 0.003230 | 0.346451 | 0.281022 |
+| `pi_3` | 0.002983 | 0.033253 | 0.003198 | 0.005338 | 0.447414 | 0.573878 |
+
+Median metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.001541 | 0.003786 | 0.001187 | 0.000620 | 0.248620 | 0.272602 |
+| `pi_2` | 0.001508 | 0.003181 | 0.001518 | 0.001501 | 0.226542 | 0.285226 |
+| `pi_3` | 0.001499 | 0.013955 | 0.001818 | 0.005291 | 0.360612 | 0.344510 |
+
+Main observations:
+
+- The DML AIPW beta error worsens sharply at the largest treatment amplitude. The mean beta MSE changes as `0.006250 -> 0.007137 -> 0.033253`, and the median changes as `0.003786 -> 0.003181 -> 0.013955`.
+- The joint least-squares beta error increases monotonically in both mean and median, suggesting that stronger alignment between `mu(x)` and the systematic part of `T` makes direct beta separation harder.
+- The treatment-network MSE is not perfectly monotone in the first two settings, but it becomes substantially larger at `pi_3`. This suggests the largest-amplitude treatment signal is the main stress point in this design.
+- The paper minimax-debias estimator remains close to oracle and is much more stable than DML AIPW here. Its mean beta MSE is `0.002186 -> 0.002864 -> 0.003198`, and its median beta MSE is `0.001187 -> 0.001518 -> 0.001818`.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.2_pi_complexity_mean_mse_comparison.png`
+- `examples/plm/figs/1.6/1.6.2_pi_complexity_median_mse_comparison.png`

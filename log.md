@@ -305,3 +305,9 @@
 
 - Updated the pi-complexity visualization pipeline so families like `1.6.1` now emit separate mean-based and median-based summary figures, while keeping the old mean filename as a compatibility alias.
 - Extended `PLMEvaluator.query_results()` to support `mode="median"` and added evaluator test coverage for the new aggregation path.
+
+## 2026-04-21 01:35:00 EDT
+
+- Added experiment `1.6.2`, a two-dimensional unit-variance PLM family with `mu(x) = 0.25 sin(2 pi x_1)` and `pi_k(x) = (k+1) sin(2 pi x_1)` for `k in {0,1,2}`.
+- Ran the full `10`-trial `1.6.2` experiment with DML, paper minimax-debias, and oracle estimators; generated mean and median pi-complexity figures under `examples/plm/figs/1.6/`.
+- Updated `examples/plm/exp_log.md` with mean/median tables and noted that DML AIPW degrades sharply at the largest treatment amplitude while the minimax-debias beta estimate remains close to oracle.
