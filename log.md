@@ -359,3 +359,9 @@
 - Added experiment `1.6.9`, with `eta(x) = sin(x_2) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`, `mu(x) = eta(x)`, and `pi_k(x) = sin(x_2) + 4k(eta(x) - sin(x_2))` for `k in {1,2,3}`.
 - Added a balanced discrete beta sampler for `beta in {-0.5, 0, 0.5}` and verified that the completed `60`-trial run has `20` trials at each beta value for every treatment-regression candidate.
 - Added requested `1.6.9` figures for MSE and grouped beta bias/variance, then updated the experiment log with the numerical summary from the saved simulation artifact.
+
+## 2026-04-21 16:18:50 EDT
+
+- Added experiment `1.6.10`, reusing the residual-only `1.6.8` treatment family with balanced `beta in {-0.5, 0, 0.5}` for grouped bias-variance analysis.
+- Ran the full `60`-trial-per-treatment-setting simulation, verified balanced beta counts, and generated the requested MSE and grouped bias/variance figures under `examples/plm/figs/1.6/`.
+- Updated `examples/plm/exp_log.md` with the `1.6.10` numerical tables and main observations from the saved simulation artifact.

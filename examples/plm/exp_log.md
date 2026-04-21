@@ -2307,3 +2307,77 @@ Generated figures:
 
 - `examples/plm/figs/1.6/1.6.9_pi_complexity_requested_mse.png`
 - `examples/plm/figs/1.6/1.6.9_beta_grouped_bias_variance_hist.png`
+
+## 1.6.10
+
+Experiment `1.6.10`, stored in the simulation artifact `1.6_10`.
+
+### Goal
+
+This experiment returns to the residual-only treatment regression from `1.6.8`, but uses the balanced three-point beta support from `1.6.9`. The goal is to compare the residual-only design against the smooth-plus-residual design under the same beta grouping used for the requested grouped bias-variance decomposition.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 2`
+- Shared signal:
+  - `eta(x) = sin(x_2) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`
+- Outcome regression:
+  - `mu(x) = eta(x)`
+- Treatment regression candidates:
+  - `pi_1(x) = 4 * 1 * (eta(x) - sin(x_2))`
+  - `pi_2(x) = 4 * 2 * (eta(x) - sin(x_2))`
+  - `pi_3(x) = 4 * 3 * (eta(x) - sin(x_2))`
+- Trial-level target coefficient: `beta in {-0.5, 0, 0.5}`, balanced by trial seed with `20` trials per beta value for each treatment-regression candidate
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `60` per treatment-regression candidate
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `60` trials for each treatment-regression candidate:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.002239 | 0.005912 | 0.001948 | 0.301685 | 0.315998 |
+| `pi_2` | 0.002280 | 0.010008 | 0.002953 | 0.294406 | 0.379556 |
+| `pi_3` | 0.002339 | 0.011800 | 0.003510 | 0.311399 | 0.560491 |
+
+Grouped bias-variance decomposition over the balanced beta support:
+
+| pi family | DML mean squared bias | DML mean variance | Minimax mean squared bias | Minimax mean variance |
+| --- | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.000400 | 0.005512 | 0.000324 | 0.001624 |
+| `pi_2` | 0.000438 | 0.009569 | 0.001767 | 0.001186 |
+| `pi_3` | 0.002378 | 0.009422 | 0.002439 | 0.001071 |
+
+Main observations:
+
+- The DML treatment nuisance error increases monotonically with the residual-treatment scaling: mean `pi` MSE changes as `0.315998 -> 0.379556 -> 0.560491`.
+- The DML AIPW beta MSE also increases across the same settings: `0.005912 -> 0.010008 -> 0.011800`.
+- The DML increase from `pi_1` to `pi_2` is mainly variance-driven, with grouped variance moving from `0.005512` to `0.009569`. At `pi_3`, grouped squared bias also rises to `0.002378`.
+- The paper minimax-debias estimator has smaller beta MSE than DML throughout, but its mean squared bias increases with treatment complexity: `0.000324 -> 0.001767 -> 0.002439`.
+- Oracle AIPW remains stable around `0.0023`, again suggesting that the degradation is due to learned nuisance/debiasing behavior rather than the oracle score.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.10_pi_complexity_requested_mse.png`
+- `examples/plm/figs/1.6/1.6.10_beta_grouped_bias_variance_hist.png`
