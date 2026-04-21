@@ -341,3 +341,9 @@
 - Added experiment `1.6.7`, a two-dimensional unit-variance PLM family with `eta(x) = sin(x_1) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`, `mu(x) = eta(x)`, and `pi_k(x) = 4k eta(x)` for `k in {0.5, 1, 2}`.
 - Extended the exact-id evaluator tests for `1.6.7`, ran the full `10`-trial comparison with DML, paper minimax-debias, and oracle estimators, and generated separate mean and median figures under `examples/plm/figs/1.6/`.
 - Updated the experiment log with mean/median tables; the high-scaling settings produce catastrophic DML and joint-LSE instability while oracle AIPW remains stable.
+
+## 2026-04-21 12:46:00 EDT
+
+- Added experiment `1.6.8`, a two-dimensional unit-variance PLM family with `eta(x) = sin(x_2) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`, `mu(x) = eta(x)`, and `pi_k(x) = 4k(eta(x) - sin(x_2))` for `k in {1, 2, 3}`.
+- Extended the exact-id evaluator tests for `1.6.8`, ran the full `10`-trial comparison with DML, paper minimax-debias, and oracle estimators, and generated separate mean and median figures under `examples/plm/figs/1.6/`.
+- Updated the experiment log with mean/median tables; the residual-treatment design avoids the catastrophic instability of `1.6.7` while still increasing DML beta and treatment-nuisance errors with scaling.

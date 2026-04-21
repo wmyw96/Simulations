@@ -2147,3 +2147,78 @@ Generated figures:
 
 - `examples/plm/figs/1.6/1.6.7_pi_complexity_mean_mse_comparison.png`
 - `examples/plm/figs/1.6/1.6.7_pi_complexity_median_mse_comparison.png`
+
+## 1.6.8
+
+Experiment `1.6.8`, stored in the simulation artifact `1.6_8`.
+
+### Goal
+
+This experiment separates the smooth component in the outcome regression from the treatment regression. The outcome regression uses the full signal `eta(x)`, while the treatment regression uses only the residual high-frequency part `eta(x) - sin(x_2)`. The goal is to see whether removing the shared smooth direction from the treatment regression avoids the catastrophic instability observed in `1.6.7`.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 2`
+- Shared outcome signal:
+  - `eta(x) = sin(x_2) + 0.25 sin(5 x_2) + 0.05 sin(20 x_2)`
+- Outcome regression:
+  - `mu(x) = eta(x)`
+- Treatment regression candidates:
+  - `pi_1(x) = 4 * 1 * (eta(x) - sin(x_2))`
+  - `pi_2(x) = 4 * 2 * (eta(x) - sin(x_2))`
+  - `pi_3(x) = 4 * 3 * (eta(x) - sin(x_2))`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 1024`
+- Test sample size: `n_test = 10000`
+- Number of trials: `10`
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 1024`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.003109 | 0.004825 | 0.003093 | 0.002459 | 0.244481 | 0.233958 |
+| `pi_2` | 0.003218 | 0.007459 | 0.003192 | 0.003743 | 0.367582 | 0.295433 |
+| `pi_3` | 0.003340 | 0.018328 | 0.003526 | 0.002826 | 0.336413 | 0.839971 |
+
+Median metrics over `10` trials:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | Joint LSE beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.001581 | 0.002237 | 0.000917 | 0.000909 | 0.231737 | 0.225229 |
+| `pi_2` | 0.001636 | 0.001093 | 0.001050 | 0.001308 | 0.332055 | 0.279530 |
+| `pi_3` | 0.001695 | 0.008289 | 0.001050 | 0.000668 | 0.280402 | 0.374360 |
+
+Main observations:
+
+- Removing the smooth `sin(x_2)` component from the treatment regression avoids the catastrophic blow-up observed in `1.6.7`. DML AIPW beta MSE remains finite and much smaller across all three settings.
+- The mean DML AIPW beta MSE increases with the residual-treatment scaling: `0.004825 -> 0.007459 -> 0.018328`.
+- The DML treatment nuisance error also increases, especially at the largest scaling. Mean `pi` MSE changes as `0.233958 -> 0.295433 -> 0.839971`, and median `pi` MSE changes as `0.225229 -> 0.279530 -> 0.374360`.
+- The DML right tail grows with scaling. The maximum DML beta MSE is about `0.024080`, `0.034165`, and `0.076813` for `pi_1`, `pi_2`, and `pi_3`, respectively.
+- The paper minimax-debias estimator stays close to oracle throughout. Its mean beta MSE is `0.003093 -> 0.003192 -> 0.003526`, while oracle is `0.003109 -> 0.003218 -> 0.003340`.
+- Joint least squares does not show the same monotone deterioration as DML AIPW here. This suggests that the main stress in `1.6.8` comes through the AIPW nuisance stage rather than through an obviously exploding joint-LSE beta.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.8_pi_complexity_mean_mse_comparison.png`
+- `examples/plm/figs/1.6/1.6.8_pi_complexity_median_mse_comparison.png`
