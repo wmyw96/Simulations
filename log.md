@@ -393,3 +393,9 @@
 
 - Replaced the DML and minimax boxplots in the unified `1.6.12`/`1.6.13` visualization with solid mean beta-MSE curves, while keeping the oracle dashed baseline and dotted nuisance-MSE curves.
 - Regenerated the unified figures and updated `examples/plm/exp_log.md` to point to the new mean-curve figure filenames.
+
+## 2026-04-22 07:48:50 EDT
+
+- Reran experiment `1.6.13` with `n = 2048` and `batch_size = 2048`, archiving the earlier `n = 1024` artifact as `simulation_results/plm/1.6_13_n1024_archive.json`.
+- Added experiment `1.6.14`, a three-dimensional PLM with `mu(x) = cos(x_1) + 0.25 sin(6x_2) + 0.05 sin(19x_3)` and `pi_k(x) = cos(x_1) + (k/2) sin(6x_2) + 0.05 sin(19x_3)` for `k in {1,2,4}`.
+- Ran `10` trials per treatment-regression candidate for both experiments, regenerated the standard and unified mean-curve figures, and updated the experiment log with the numerical summaries.

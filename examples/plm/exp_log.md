@@ -2539,7 +2539,7 @@ Experiment `1.6.13`, stored in the simulation artifact `1.6_13`.
 
 ### Goal
 
-This experiment returns to `n = 1024` and `batch_size = 1024` in a two-dimensional setting. Compared with `1.6.12`, the treatment regression changes the amplitude of the `sin(5x_2)` component directly while keeping the `sin(20x_2)` component fixed. The goal is to test whether the large DML instability in `1.6.12` persists under this lower-sample-size but smoother two-dimensional design.
+This experiment reruns the two-dimensional `1.6.13` design with `n = 2048` and `batch_size = 2048`. Compared with `1.6.12`, the treatment regression changes the amplitude of the `sin(5x_2)` component directly while keeping the `sin(20x_2)` component fixed. The previous `n = 1024` artifact was archived as `simulation_results/plm/1.6_13_n1024_archive.json`, and the active `1.6_13` artifact now records the full-batch `2048` rerun.
 
 ### Setting and design
 
@@ -2558,7 +2558,7 @@ Specific data-generating setting:
 - Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
 - Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
 - Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
-- Training sample size: `n = 1024`
+- Training sample size: `n = 2048`
 - Test sample size: `n_test = 10000`
 - Number of trials: `10` per treatment-regression candidate
 
@@ -2572,7 +2572,7 @@ Method design:
 - Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
 - Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
 - Learning rate: `lr = 1e-3`
-- Mini-batch size: `batch_size = 1024`
+- Mini-batch size: `batch_size = 2048`
 - Training epochs: `niter = 200`
 - Device: CPU by default unless explicitly changed in the simulation configuration
 
@@ -2582,25 +2582,25 @@ Average metrics over `10` trials for each treatment-regression candidate:
 
 | pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | DML mu MSE | DML pi MSE |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `pi_1` | 0.003059 | 0.004676 | 0.003100 | 0.317538 | 0.205605 |
-| `pi_2` | 0.003135 | 0.006849 | 0.002697 | 0.312934 | 0.237735 |
-| `pi_3` | 0.003222 | 0.006784 | 0.003204 | 0.256998 | 0.313179 |
+| `pi_1` | 0.000734 | 0.003655 | 0.000686 | 0.164398 | 0.204802 |
+| `pi_2` | 0.000730 | 0.003220 | 0.000629 | 0.249570 | 0.162241 |
+| `pi_3` | 0.000726 | 0.002488 | 0.000721 | 0.182569 | 0.169166 |
 
 Bias-variance decomposition of beta estimation error over `10` trials:
 
 | pi family | DML squared bias | DML variance | Minimax squared bias | Minimax variance |
 | --- | ---: | ---: | ---: | ---: |
-| `pi_1` | 0.001002 | 0.003674 | 0.000844 | 0.002256 |
-| `pi_2` | 0.001578 | 0.005272 | 0.000676 | 0.002022 |
-| `pi_3` | 0.000607 | 0.006177 | 0.001032 | 0.002172 |
+| `pi_1` | 0.000009 | 0.003646 | 0.000001 | 0.000685 |
+| `pi_2` | 0.000007 | 0.003213 | 0.000006 | 0.000623 |
+| `pi_3` | 0.000008 | 0.002481 | 0.000035 | 0.000686 |
 
 Main observations:
 
-- The DML AIPW beta MSE increases from `pi_1` to `pi_2` and remains similar at `pi_3`: `0.004676 -> 0.006849 -> 0.006784`.
-- Unlike `1.6.12`, no catastrophic DML outlier appears in this 10-trial run.
-- DML treatment nuisance MSE grows with the `sin(5x_2)` treatment amplitude: `0.205605 -> 0.237735 -> 0.313179`.
-- The minimax-debias estimator stays close to oracle in all three settings, with beta MSE around `0.0027` to `0.0032`.
-- The unified figure shows a cleaner separation between nuisance difficulty and beta-estimation mean curves than in `1.6.12`.
+- Increasing `n` and using full-batch `2048` training lowers the oracle benchmark substantially relative to the earlier `n = 1024` run.
+- DML AIPW beta MSE is not monotone in this rerun: `0.003655 -> 0.003220 -> 0.002488`. The dominant contribution is variance rather than squared bias.
+- The minimax-debias estimator remains close to oracle in all three settings, with beta MSE around `0.0006` to `0.0007`.
+- The DML nuisance errors do not rise monotonically with the `sin(5x_2)` amplitude in this 10-trial run, so this design is not a clean monotone stress test for nuisance difficulty.
+- The unified mean-curve figure now shows solid mean beta-MSE curves for DML and minimax debias, a dashed oracle reference, and dotted nuisance-MSE curves.
 
 Generated figures:
 
@@ -2608,3 +2608,75 @@ Generated figures:
 - `examples/plm/figs/1.6/1.6.13_pi_complexity_beta_bias_sq.png`
 - `examples/plm/figs/1.6/1.6.13_pi_complexity_beta_variance.png`
 - `examples/plm/figs/1.6/1.6.13_unified_mse_mean_curve.png`
+
+## 1.6.14
+
+Experiment `1.6.14`, stored in the simulation artifact `1.6_14`.
+
+### Goal
+
+This experiment keeps `n = 2048`, `batch_size = 2048`, and `beta ~ Unif[-0.5, 0.5]`, but switches to a three-dimensional design with a shared `cos(x_1)` component and treatment-specific scaling of the `sin(6x_2)` component. The goal is to test whether a treatment regression that changes its middle-frequency component produces a clearer degradation pattern for DML AIPW and the paper minimax-debias estimator.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 3`
+- Outcome regression: `mu(x) = cos(x_1) + 0.25 sin(6 x_2) + 0.05 sin(19 x_3)`
+- Treatment regression candidates:
+  - `pi_1(x) = cos(x_1) + 0.5 sin(6 x_2) + 0.05 sin(19 x_3)`
+  - `pi_2(x) = cos(x_1) + sin(6 x_2) + 0.05 sin(19 x_3)`
+  - `pi_4(x) = cos(x_1) + 2 sin(6 x_2) + 0.05 sin(19 x_3)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 2048`
+- Test sample size: `n_test = 10000`
+- Number of trials: `10` per treatment-regression candidate
+
+Method design:
+
+- Compared methods: Neural DML, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 2048`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+### Results
+
+Average metrics over `10` trials for each treatment-regression candidate:
+
+| pi family | Oracle AIPW beta MSE | DML AIPW beta MSE | Minimax debias beta MSE | DML mu MSE | DML pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.001218 | 0.003845 | 0.003100 | 0.358750 | 0.423948 |
+| `pi_2` | 0.001228 | 0.002892 | 0.003359 | 0.283530 | 0.874364 |
+| `pi_4` | 0.001247 | 0.006117 | 0.004168 | 0.339523 | 0.353218 |
+
+Bias-variance decomposition of beta estimation error over `10` trials:
+
+| pi family | DML squared bias | DML variance | Minimax squared bias | Minimax variance |
+| --- | ---: | ---: | ---: | ---: |
+| `pi_1` | 0.000229 | 0.003616 | 0.000143 | 0.002957 |
+| `pi_2` | 0.000511 | 0.002382 | 0.000141 | 0.003218 |
+| `pi_4` | 0.000095 | 0.006022 | 0.000091 | 0.004077 |
+
+Main observations:
+
+- DML AIPW beta MSE is largest for `pi_4`, but not monotone from `pi_1` to `pi_2`: `0.003845 -> 0.002892 -> 0.006117`.
+- The DML treatment nuisance MSE spikes for `pi_2` in this run, while the beta MSE spike appears at `pi_4`. This suggests the mapping from nuisance MSE to beta MSE remains sensitive to trial-level covariance and residual alignment, not just marginal nuisance accuracy.
+- The minimax-debias beta MSE increases mildly with the largest treatment amplitude and remains more stable than DML at `pi_4`, but it is not as close to oracle as in `1.6.13`.
+- As in `1.6.13`, variance dominates the beta-error decomposition for both learned estimators.
+
+Generated figures:
+
+- `examples/plm/figs/1.6/1.6.14_pi_complexity_mean_mse_comparison.png`
+- `examples/plm/figs/1.6/1.6.14_pi_complexity_beta_bias_sq.png`
+- `examples/plm/figs/1.6/1.6.14_pi_complexity_beta_variance.png`
+- `examples/plm/figs/1.6/1.6.14_unified_mse_mean_curve.png`
