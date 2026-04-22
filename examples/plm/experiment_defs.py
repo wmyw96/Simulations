@@ -487,6 +487,39 @@ def experiment_1_6_11_pi_3(x: np.ndarray) -> np.ndarray:
     return 12.0 * _experiment_1_6_11_residual(x)
 
 
+def _experiment_1_6_12_eta(x: np.ndarray) -> np.ndarray:
+    x2 = x[:, [1]]
+    return np.sin(x2) + 0.25 * np.sin(4.0 * x2) + 0.05 * np.sin(7.0 * x2) + 0.005 * np.sin(23.0 * x2)
+
+
+def _experiment_1_6_12_residual(x: np.ndarray) -> np.ndarray:
+    x2 = x[:, [1]]
+    return _experiment_1_6_12_eta(x) - np.sin(x2)
+
+
+def experiment_1_6_12_mu(x: np.ndarray) -> np.ndarray:
+    """Return the three-dimensional eta outcome regression used in experiment 1.6.12."""
+    return _experiment_1_6_12_eta(x)
+
+
+def experiment_1_6_12_pi_1(x: np.ndarray) -> np.ndarray:
+    """Return the treatment regression with k = 1 in experiment 1.6.12."""
+    x2 = x[:, [1]]
+    return np.sin(x2) + 4.0 * _experiment_1_6_12_residual(x)
+
+
+def experiment_1_6_12_pi_2(x: np.ndarray) -> np.ndarray:
+    """Return the treatment regression with k = 2 in experiment 1.6.12."""
+    x2 = x[:, [1]]
+    return np.sin(x2) + 8.0 * _experiment_1_6_12_residual(x)
+
+
+def experiment_1_6_12_pi_3(x: np.ndarray) -> np.ndarray:
+    """Return the treatment regression with k = 3 in experiment 1.6.12."""
+    x2 = x[:, [1]]
+    return np.sin(x2) + 12.0 * _experiment_1_6_12_residual(x)
+
+
 def increasing_beta_pi_1(x: np.ndarray) -> np.ndarray:
     """Smooth low-amplitude perturbation of the easy mu design."""
     x1 = x[:, [0]]
@@ -731,6 +764,10 @@ FUNCTION_REGISTRY = {
     "experiment_1_6_11_pi_1": experiment_1_6_11_pi_1,
     "experiment_1_6_11_pi_2": experiment_1_6_11_pi_2,
     "experiment_1_6_11_pi_3": experiment_1_6_11_pi_3,
+    "experiment_1_6_12_mu": experiment_1_6_12_mu,
+    "experiment_1_6_12_pi_1": experiment_1_6_12_pi_1,
+    "experiment_1_6_12_pi_2": experiment_1_6_12_pi_2,
+    "experiment_1_6_12_pi_3": experiment_1_6_12_pi_3,
     "increasing_beta_pi_1": increasing_beta_pi_1,
     "increasing_beta_pi_2": increasing_beta_pi_2,
     "increasing_beta_pi_3": increasing_beta_pi_3,
@@ -820,6 +857,10 @@ FUNCTION_LABELS = {
     "experiment_1_6_11_pi_1": r"$4(\eta(x)-\sin(x_1))$",
     "experiment_1_6_11_pi_2": r"$8(\eta(x)-\sin(x_1))$",
     "experiment_1_6_11_pi_3": r"$12(\eta(x)-\sin(x_1))$",
+    "experiment_1_6_12_mu": r"$\eta(x)$",
+    "experiment_1_6_12_pi_1": r"$\sin(x_2)+4(\eta(x)-\sin(x_2))$",
+    "experiment_1_6_12_pi_2": r"$\sin(x_2)+8(\eta(x)-\sin(x_2))$",
+    "experiment_1_6_12_pi_3": r"$\sin(x_2)+12(\eta(x)-\sin(x_2))$",
     "increasing_beta_pi_1": r"$\mu(x)+0.05\frac{\sin(2\pi x_1)+\cos(2\pi x_2)}{\sqrt{2}}$",
     "increasing_beta_pi_2": r"$\mu(x)+0.18\,\operatorname{sign}(\sin(8\pi x_1))\operatorname{sign}(\cos(8\pi x_2))$",
     "increasing_beta_pi_3": r"$\mu(x)+0.20\,\operatorname{sign}(\sin(8\pi x_1))\operatorname{sign}(\cos(8\pi x_2))$",
@@ -3386,6 +3427,104 @@ def build_experiment_1_6_11(
     )
 
 
+def build_experiment_1_6_12(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build the three-dimensional smooth-plus-residual eta treatment family."""
+    unit_variance_scale = math.sqrt(3.0)
+    dgp_param_grid = {
+        "d": 3,
+        "func_mu_name": "experiment_1_6_12_mu",
+        "func_pi_name": [
+            "experiment_1_6_12_pi_1",
+            "experiment_1_6_12_pi_2",
+            "experiment_1_6_12_pi_3",
+        ],
+        "beta_sampler_name": "uniform",
+        "beta_low": -0.5,
+        "beta_high": 0.5,
+        "sigma_u": unit_variance_scale,
+        "sigma_eps": unit_variance_scale,
+        "n_test": 10000,
+        "n": [2048],
+    }
+
+    dml_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 2048,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": 3,
+    }
+
+    minimax_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 2048,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": 3,
+        "variance_mode": "constant_one",
+    }
+
+    oracle_method_config = {
+        "func_mu_name": "experiment_1_6_12_mu",
+        "func_pi_name": None,
+        "follows_dgp_pi": True,
+    }
+
+    estimators = [
+        {
+            "name": "dml_nn",
+            "is_oracle": False,
+            "factory_name": "make_plm_dml_estimator",
+            "method_config": deepcopy(dml_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_dml_factory(dml_method_config),
+        },
+        {
+            "name": "plm_minimax_debias",
+            "is_oracle": False,
+            "factory_name": "make_plm_minimax_debias_estimator",
+            "method_config": deepcopy(minimax_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_minimax_factory(minimax_method_config),
+        },
+        {
+            "name": "oracle_aipw",
+            "is_oracle": True,
+            "factory_name": "make_plm_oracle_estimator",
+            "method_config": deepcopy(oracle_method_config),
+            "accepts_dgp_config": True,
+            "factory": _make_oracle_factory(oracle_method_config),
+        },
+    ]
+
+    return PLMEvaluator(
+        exp_name=EXPERIMENT_NAME,
+        exp_id=exp_id,
+        dgp_generator=plm_uniform_noise_dgp_generator,
+        dgp_param_grid=dgp_param_grid,
+        estimators=estimators,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        result_root=result_root,
+    )
+
+
 EXPERIMENT_FAMILY_BUILDERS = {
     "1.1": build_experiment_1_1,
     "1.2": build_experiment_1_2,
@@ -3429,6 +3568,7 @@ EXPERIMENT_ID_BUILDERS = {
     "1.6_9": build_experiment_1_6_9,
     "1.6_10": build_experiment_1_6_10,
     "1.6_11": build_experiment_1_6_11,
+    "1.6_12": build_experiment_1_6_12,
 }
 
 

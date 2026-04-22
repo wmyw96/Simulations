@@ -371,3 +371,9 @@
 - Added experiment `1.6.11`, a ten-dimensional PLM with `n = 2048`, `batch_size = 2048`, balanced `beta in {-0.5, 0, 0.5}`, and residual-only treatment regressions `pi_k(x) = 4k(eta(x) - sin(x_1))`.
 - Ran the full `60`-trial-per-treatment-setting simulation, verified balanced beta counts, and generated the requested MSE and grouped beta bias/variance figures.
 - Updated `examples/plm/exp_log.md` with the `1.6.11` results, including the observed high bias of the current minimax-debias estimator in this high-dimensional setting.
+
+## 2026-04-21 21:42:38 EDT
+
+- Added experiment `1.6.12`, a three-dimensional PLM with `n = 2048`, `batch_size = 2048`, `beta ~ Unif[-0.5, 0.5]`, and smooth-plus-residual treatment regressions on the second coordinate.
+- Ran the requested `10` trials per treatment-regression setting, generated the standard beta MSE, squared-bias, and variance figures, and extracted nuisance MSE summaries from the saved artifact.
+- Updated `examples/plm/exp_log.md` with the `1.6.12` numerical results, including the observed DML AIPW failure at the largest treatment scaling.
