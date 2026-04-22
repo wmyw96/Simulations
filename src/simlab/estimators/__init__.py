@@ -7,6 +7,7 @@ from simlab.estimators.plm_est import (
     PLMDMLOracleTrackingEstimator,
     PLMMinimaxDebiasEstimator,
     PLMOracleAIPWEstimator,
+    PLMValidationSelectedDMLEstimator,
     ResidualReLUNet,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "PLMDMLOracleTrackingEstimator",
     "PLMMinimaxDebiasEstimator",
     "PLMOracleAIPWEstimator",
+    "PLMValidationSelectedDMLEstimator",
     "ResidualReLUNet",
 ]

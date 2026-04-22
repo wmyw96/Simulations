@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+import warnings
 
 import numpy as np
 
@@ -13,6 +14,7 @@ from simlab.estimators.plm_est import (
     PLMDMLOracleTrackingEstimator,
     PLMMinimaxDebiasEstimator,
     PLMOracleAIPWEstimator,
+    PLMValidationSelectedDMLEstimator,
 )
 
 
@@ -117,6 +119,107 @@ class PLMEstimatorTests(unittest.TestCase):
 
         self.assertEqual(result.diagnostics["n_d1"], 4)
         self.assertEqual(result.diagnostics["n_d2"], 5)
+
+    def test_validation_selected_dml_records_selection_paths(self) -> None:
+        dgp = PartialLinearModelUniformNoiseDGP(
+            beta=0.5,
+            func_mu=zero_mu,
+            func_pi=linear_pi,
+            d=2,
+            sigma_u=0.2,
+            sigma_eps=0.1,
+        )
+        train_sample = dgp.sample(n=24, seed=101, oracle=False)
+        validation_sample = dgp.sample(n=9, seed=202, oracle=False)
+        estimator = PLMValidationSelectedDMLEstimator(
+            name="dml-valid-select",
+            hyper_parameters={
+                "L": 2,
+                "N": 8,
+                "lambda_mu": 1e-4,
+                "lambda_pi": 1e-4,
+                "niter": 10,
+                "lr": 1e-3,
+                "batch_size": 6,
+                "seed": 17,
+                "validation_check_interval": 4,
+            },
+            d=2,
+            device="cpu",
+        )
+
+        result = estimator.fit(train_sample, validation_sample)
+        predictions = estimator.predict(validation_sample.observed["x"])
+
+        self.assertTrue(np.isfinite(result.estimate))
+        self.assertEqual(predictions["mu"].shape, (9, 1))
+        self.assertEqual(predictions["pi"].shape, (9, 1))
+        self.assertTrue(result.diagnostics["used_validation_selection"])
+        self.assertEqual(result.diagnostics["validation_n"], 9)
+        self.assertEqual(result.diagnostics["validation_check_interval"], 4)
+        self.assertEqual(result.diagnostics["validation_epoch_grid"], [4, 8, 10])
+        self.assertEqual(len(result.diagnostics["validation_mu_loss_path"]), 3)
+        self.assertEqual(len(result.diagnostics["validation_pi_loss_path"]), 3)
+        self.assertIn(
+            result.diagnostics["selected_mu_epoch"],
+            result.diagnostics["validation_epoch_grid"],
+        )
+        self.assertIn(
+            result.diagnostics["selected_pi_epoch"],
+            result.diagnostics["validation_epoch_grid"],
+        )
+        self.assertAlmostEqual(
+            result.diagnostics["best_validation_mu_loss"],
+            min(result.diagnostics["validation_mu_loss_path"]),
+        )
+        self.assertAlmostEqual(
+            result.diagnostics["best_validation_pi_loss"],
+            min(result.diagnostics["validation_pi_loss_path"]),
+        )
+
+    def test_validation_selected_dml_warns_and_falls_back_without_validation(self) -> None:
+        dgp = PartialLinearModelUniformNoiseDGP(
+            beta=0.5,
+            func_mu=zero_mu,
+            func_pi=linear_pi,
+            d=2,
+            sigma_u=0.2,
+            sigma_eps=0.1,
+        )
+        train_sample = dgp.sample(n=20, seed=303, oracle=False)
+        estimator = PLMValidationSelectedDMLEstimator(
+            name="dml-valid-select-fallback",
+            hyper_parameters={
+                "L": 1,
+                "N": 6,
+                "lambda_mu": 1e-4,
+                "lambda_pi": 1e-4,
+                "niter": 3,
+                "lr": 1e-3,
+                "batch_size": 5,
+                "seed": 19,
+            },
+            d=2,
+            device="cpu",
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = estimator.fit(train_sample, valid_data=None)
+
+        predictions = estimator.predict(train_sample.observed["x"])
+        self.assertEqual(len(caught), 1)
+        self.assertTrue(issubclass(caught[0].category, RuntimeWarning))
+        self.assertTrue(np.isfinite(result.estimate))
+        self.assertEqual(predictions["mu"].shape, (20, 1))
+        self.assertEqual(predictions["pi"].shape, (20, 1))
+        self.assertFalse(result.diagnostics["used_validation_selection"])
+        self.assertEqual(result.diagnostics["validation_n"], 0)
+        self.assertEqual(result.diagnostics["validation_epoch_grid"], [])
+        self.assertEqual(result.diagnostics["validation_mu_loss_path"], [])
+        self.assertEqual(result.diagnostics["validation_pi_loss_path"], [])
+        self.assertIsNone(result.diagnostics["selected_mu_epoch"])
+        self.assertIsNone(result.diagnostics["selected_pi_epoch"])
 
     def test_profiled_joint_lse_beta_tracks_nonzero_signal(self) -> None:
         def sine_first_coordinate(x: np.ndarray) -> np.ndarray:

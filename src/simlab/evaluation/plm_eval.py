@@ -193,7 +193,14 @@ class PLMEvaluator(Evaluator):
                 data_observed=data_observed,
                 validation_data=validation_data,
             )
-            fit_result = estimator.fit(fit_data)
+            if estimator_spec["accepts_validation_data"]:
+                validation_fit_data = self._build_validation_fit_data(
+                    estimator_spec=estimator_spec,
+                    validation_data=validation_data,
+                )
+                fit_result = estimator.fit(fit_data, validation_fit_data)
+            else:
+                fit_result = estimator.fit(fit_data)
             runtime_sec = time.perf_counter() - start_time
             estimator_results.append(
                 self._evaluate_estimator(
@@ -224,18 +231,22 @@ class PLMEvaluator(Evaluator):
         train_n: int,
         validation_seed: int,
     ) -> SampledData | None:
-        """Sample one shared validation set when any estimator requests validation tracking."""
-        requested_sizes = {
-            int(spec["method_config"].get("validation_n", train_n))
-            for spec in self.estimators
-            if spec["method_config"].get("tracking_source") == "validation"
-        }
+        """Sample one shared validation set when any estimator requests it."""
+        requested_sizes = set()
+        requires_oracle_validation = False
+        for spec in self.estimators:
+            method_config = spec["method_config"]
+            if method_config.get("tracking_source") == "validation":
+                requested_sizes.add(int(method_config.get("validation_n", train_n)))
+                requires_oracle_validation = True
+            if spec["accepts_validation_data"]:
+                requested_sizes.add(int(method_config.get("validation_n", max(1, train_n // 3))))
         if not requested_sizes:
             return None
         if len(requested_sizes) != 1:
-            raise ValueError("All validation-tracking estimators must use the same validation_n.")
+            raise ValueError("All validation-aware estimators must use the same validation_n.")
         validation_n = requested_sizes.pop()
-        return dgp.sample(n=validation_n, seed=validation_seed, oracle=True)
+        return dgp.sample(n=validation_n, seed=validation_seed, oracle=requires_oracle_validation)
 
     def _build_fit_data(
         self,
@@ -265,6 +276,18 @@ class PLMEvaluator(Evaluator):
             observed=deepcopy(data_oracle.observed),
             oracle=augmented_oracle,
         )
+
+    def _build_validation_fit_data(
+        self,
+        estimator_spec: dict[str, Any],
+        validation_data: SampledData | None,
+    ) -> SampledData:
+        """Prepare observed-only validation data for validation-aware estimators."""
+        if not estimator_spec["accepts_validation_data"]:
+            raise ValueError("Estimator spec does not accept validation data.")
+        if validation_data is None:
+            raise ValueError("Validation data was requested but no validation sample was created.")
+        return SampledData(observed=deepcopy(validation_data.observed))
 
     def _evaluate_estimator(
         self,
@@ -316,7 +339,25 @@ class PLMEvaluator(Evaluator):
             "mu_pi_product_mse": float(np.mean((mu_pred * pi_pred - mu_true * pi_true) ** 2)),
             "runtime_sec": runtime_sec,
         }
-        for key in ("epoch_grid", "mu_mse_path", "pi_mse_path", "tracking_split", "tracking_n", "tracking_paths"):
+        diagnostic_keys = (
+            "epoch_grid",
+            "mu_mse_path",
+            "pi_mse_path",
+            "tracking_split",
+            "tracking_n",
+            "tracking_paths",
+            "validation_n",
+            "validation_check_interval",
+            "validation_epoch_grid",
+            "validation_mu_loss_path",
+            "validation_pi_loss_path",
+            "selected_mu_epoch",
+            "selected_pi_epoch",
+            "best_validation_mu_loss",
+            "best_validation_pi_loss",
+            "used_validation_selection",
+        )
+        for key in diagnostic_keys:
             if key in diagnostics:
                 result_record[key] = deepcopy(diagnostics[key])
         return result_record
@@ -348,15 +389,7 @@ class PLMEvaluator(Evaluator):
             "dgp_param_grid": deepcopy(self.dgp_param_grid),
             "n_trials": self.n_trials,
             "seed_offset": self.seed_offset,
-            "estimator_specs": [
-                {
-                    "name": spec["name"],
-                    "is_oracle": spec["is_oracle"],
-                    "factory_name": spec["factory_name"],
-                    "method_config": deepcopy(spec["method_config"]),
-                }
-                for spec in self.estimators
-            ],
+            "estimator_specs": self._serializable_estimator_specs(),
             "trial_results": [],
         }
 
@@ -441,6 +474,7 @@ class PLMEvaluator(Evaluator):
             "method_config": deepcopy(spec.get("method_config", {})),
             "accepts_trial_seed": bool(spec.get("accepts_trial_seed", False)),
             "accepts_dgp_config": bool(spec.get("accepts_dgp_config", False)),
+            "accepts_validation_data": bool(spec.get("accepts_validation_data", False)),
         }
 
     def _instantiate_estimator(
@@ -472,6 +506,8 @@ class PLMEvaluator(Evaluator):
                 item["accepts_trial_seed"] = True
             if spec["accepts_dgp_config"]:
                 item["accepts_dgp_config"] = True
+            if spec["accepts_validation_data"]:
+                item["accepts_validation_data"] = True
             serializable_specs.append(item)
         return serializable_specs
 
@@ -512,6 +548,8 @@ class PLMEvaluator(Evaluator):
                 item["accepts_trial_seed"] = True
             if spec.get("accepts_dgp_config"):
                 item["accepts_dgp_config"] = True
+            if spec.get("accepts_validation_data"):
+                item["accepts_validation_data"] = True
             normalized.append(item)
         return normalized
 

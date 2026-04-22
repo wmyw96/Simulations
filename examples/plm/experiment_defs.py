@@ -14,6 +14,7 @@ from simlab.estimators.plm_est import (
     PLMDMLOracleTrackingEstimator,
     PLMMinimaxDebiasEstimator,
     PLMOracleAIPWEstimator,
+    PLMValidationSelectedDMLEstimator,
 )
 from simlab.evaluation.plm_eval import PLMEvaluator
 
@@ -1028,6 +1029,27 @@ def make_plm_dml_estimator(method_config: dict) -> PLMDMLEstimator:
     )
 
 
+def make_plm_validation_selected_dml_estimator(method_config: dict) -> PLMValidationSelectedDMLEstimator:
+    """Construct a neural DML estimator with observed-validation model selection."""
+    hyper_parameters = {
+        "L": method_config["L"],
+        "N": method_config["N"],
+        "lambda_mu": method_config["lambda_mu"],
+        "lambda_pi": method_config["lambda_pi"],
+        "niter": method_config["niter"],
+        "lr": method_config["lr"],
+        "batch_size": method_config["batch_size"],
+        "seed": method_config.get("seed"),
+        "validation_check_interval": method_config.get("validation_check_interval", 10),
+    }
+    return PLMValidationSelectedDMLEstimator(
+        name="dml_nn_valid_select",
+        hyper_parameters=hyper_parameters,
+        d=int(method_config["d"]),
+        device=str(method_config.get("device", "cpu")),
+    )
+
+
 def make_plm_oracle_estimator(method_config: dict) -> PLMOracleAIPWEstimator:
     """Construct an oracle AIPW estimator for the PLM."""
     return PLMOracleAIPWEstimator(
@@ -1103,6 +1125,29 @@ def _make_fixed_dml_factory(method_config: dict):
 
     def factory() -> PLMDMLEstimator:
         return make_plm_dml_estimator(deepcopy(base_config))
+
+    return factory
+
+
+def _make_trial_seeded_valid_select_dml_factory(method_config: dict):
+    """Return a factory that injects the trial seed into validation-selected DML."""
+    base_config = deepcopy(method_config)
+
+    def factory(*, trial_seed: int | None = None) -> PLMValidationSelectedDMLEstimator:
+        config = deepcopy(base_config)
+        if trial_seed is not None:
+            config["seed"] = int(trial_seed)
+        return make_plm_validation_selected_dml_estimator(config)
+
+    return factory
+
+
+def _make_fixed_valid_select_dml_factory(method_config: dict):
+    """Return a factory for a fixed-seed validation-selected DML estimator."""
+    base_config = deepcopy(method_config)
+
+    def factory() -> PLMValidationSelectedDMLEstimator:
+        return make_plm_validation_selected_dml_estimator(deepcopy(base_config))
 
     return factory
 

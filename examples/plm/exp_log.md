@@ -92,6 +92,27 @@ Default hyper-parameters:
 - `variance_mode = "constant_one"` by default: uses `\hat v \equiv 1`, which is appropriate for the current homoskedastic simulation studies.
 - `device = "cpu"` by default: computation device for the neural-network routines.
 
+### Method5: Validation-Selected Neural DML (`PLMValidationSelectedDMLEstimator`)
+
+This method is a standalone neural DML implementation that uses the same residual ReLU nuisance architecture as `PLMDMLEstimator`, but adds model selection through an independent observed validation sample. The validation sample contains only `X`, `T`, and `Y`; oracle nuisance values are not exposed to the estimator.
+
+Training follows the standard DML nuisance stage on the second split of the training sample. Every `validation_check_interval` epochs, the treatment network is evaluated by the observed treatment-prediction loss `mean((T - pi_hat(X))^2)` on the validation sample. The outcome network is evaluated by a profiled observed outcome-prediction loss: for the current `mu_hat`, the method first computes the least-squares coefficient `beta` on the validation sample and then records `mean((beta T + mu_hat(X) - Y)^2)`. The selected `mu` and selected `pi` may therefore come from different epochs. After selection, the method restores the best nuisance networks, recomputes the joint least-squares coefficient on the second split, and computes the final AIPW beta estimate on the first split.
+
+Default hyper-parameters:
+
+- `L = 3`: depth of the residual ReLU nuisance networks.
+- `N = 512`: hidden-layer width of the nuisance networks.
+- `lambda_mu = 1e-4`: L2 weight regularization level for the outcome network.
+- `lambda_pi = 1e-4`: L2 weight regularization level for the treatment network.
+- `niter = 200`: number of training epochs used for the nuisance fit.
+- `lr = 1e-3`: Adam learning rate.
+- `batch_size = 1024`: mini-batch size used during training.
+- `validation_n = n // 3` by default in the evaluator: size of the independent validation sample used for model selection.
+- `validation_check_interval = 10`: number of epochs between validation-loss evaluations; the final epoch is also evaluated when it is not already on the validation grid.
+- `device = "cpu"` by default: computation device for neural-network training.
+
+The diagnostics record the validation epoch grid, the validation loss paths for both nuisances, the selected epochs for `mu` and `pi`, the best validation losses, and whether validation selection was actually used. If no validation sample is supplied, the estimator emits a runtime warning and reduces to final-epoch neural DML behavior.
+
 ## Evaluation
 
 For each estimator, the experiment records the following quantities.

@@ -7,7 +7,9 @@ import unittest
 from pathlib import Path
 
 import json
+import numpy as np
 
+from simlab.core.records import EstimateResult
 from examples.plm.experiment_defs import build_evaluator_from_exp_id, build_experiment_1_1, normalize_exp_id
 
 
@@ -1258,6 +1260,99 @@ class PLMEvaluatorTests(unittest.TestCase):
             self.assertIn("tracking_paths", estimator_record)
             self.assertEqual(estimator_record["tracking_paths"]["D2"]["tracking_n"], 8)
             self.assertEqual(estimator_record["tracking_paths"]["validation"]["tracking_n"], 16)
+
+    def test_validation_aware_estimator_receives_observed_validation_sample(self) -> None:
+        seen: dict[str, object] = {}
+
+        class RecordingValidationEstimator:
+            def fit(self, train_data, valid_data=None):
+                if valid_data is None:
+                    raise AssertionError("Validation-aware estimator did not receive validation data.")
+                seen["train_oracle_keys"] = sorted(train_data.oracle)
+                seen["valid_oracle_keys"] = sorted(valid_data.oracle)
+                seen["valid_n"] = len(valid_data.observed["x"])
+                result = EstimateResult(
+                    target="beta",
+                    estimate=0.0,
+                    diagnostics={
+                        "validation_n": len(valid_data.observed["x"]),
+                        "validation_check_interval": 10,
+                        "validation_epoch_grid": [10],
+                        "validation_mu_loss_path": [1.0],
+                        "validation_pi_loss_path": [2.0],
+                        "selected_mu_epoch": 10,
+                        "selected_pi_epoch": 10,
+                        "best_validation_mu_loss": 1.0,
+                        "best_validation_pi_loss": 2.0,
+                        "used_validation_selection": True,
+                    },
+                )
+                self.est_params = result
+                return result
+
+            def predict(self, X):
+                return {
+                    "mu": np.zeros((len(X), 1), dtype=float),
+                    "pi": np.zeros((len(X), 1), dtype=float),
+                }
+
+        class RecordingPlainEstimator:
+            def fit(self, data):
+                seen["plain_fit_called"] = True
+                result = EstimateResult(target="beta", estimate=0.0, diagnostics={})
+                self.est_params = result
+                return result
+
+            def predict(self, X):
+                return {
+                    "mu": np.zeros((len(X), 1), dtype=float),
+                    "pi": np.zeros((len(X), 1), dtype=float),
+                }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_root = Path(temp_dir) / "simulation_results"
+            evaluator = build_experiment_1_1(
+                exp_id="1.1_validation_selected",
+                n_trials=1,
+                seed_offset=2,
+                device="cpu",
+                result_root=result_root,
+            )
+            evaluator.dgp_param_grid["n"] = [18]
+            evaluator.dgp_param_grid["n_test"] = 24
+            evaluator.estimators = [
+                {
+                    "name": "validation-recorder",
+                    "factory": RecordingValidationEstimator,
+                    "factory_name": "RecordingValidationEstimator",
+                    "is_oracle": False,
+                    "method_config": {},
+                    "accepts_trial_seed": False,
+                    "accepts_dgp_config": False,
+                    "accepts_validation_data": True,
+                },
+                {
+                    "name": "plain-recorder",
+                    "factory": RecordingPlainEstimator,
+                    "factory_name": "RecordingPlainEstimator",
+                    "is_oracle": False,
+                    "method_config": {},
+                    "accepts_trial_seed": False,
+                    "accepts_dgp_config": False,
+                    "accepts_validation_data": False,
+                },
+            ]
+
+            results = evaluator.run()
+            validation_record = results["trial_results"][0]["estimator_results"][0]
+
+            self.assertEqual(seen["valid_n"], 6)
+            self.assertEqual(seen["train_oracle_keys"], [])
+            self.assertEqual(seen["valid_oracle_keys"], [])
+            self.assertTrue(seen["plain_fit_called"])
+            self.assertEqual(validation_record["validation_n"], 6)
+            self.assertEqual(validation_record["validation_epoch_grid"], [10])
+            self.assertTrue(validation_record["used_validation_selection"])
 
 
 if __name__ == "__main__":

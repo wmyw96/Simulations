@@ -417,3 +417,9 @@
 - Added and ran the `1.6_14_tracking` nuisance-path diagnostic with the `1.6.14` DGP, validation sample size `2048`, and `10` trials per treatment-regression setting.
 - Generated `examples/plm/figs/1.6/1.6.14_nuisance_validation_overlay_paths.png` using the one-panel validation-only overlay convention.
 - Updated `examples/plm/exp_log.md` with the `1.6.14` validation nuisance-path summary.
+
+## 2026-04-22 17:33:07 EDT
+
+- Added a standalone `PLMValidationSelectedDMLEstimator` that trains neural DML nuisances directly, performs observed validation-loss model selection every configurable interval, restores the selected nuisance networks, and then computes the usual DML AIPW estimate.
+- Extended `PLMEvaluator` estimator specs with `accepts_validation_data=True`, sampling an observed-only independent validation set of default size `n // 3` for validation-aware estimators while preserving the existing oracle tracking validation path.
+- Added the validation-selected DML factory, estimator/evaluator unit tests, and experiment-log documentation for the new method and diagnostics.

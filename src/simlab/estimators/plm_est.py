@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
@@ -274,6 +275,234 @@ class PLMDMLEstimator(Estimator):
                 )
             else:
                 diagnostics["tracking_paths"] = tracking_paths
+        self.est_params = EstimateResult(
+            target="beta",
+            estimate=beta_hat,
+            diagnostics=diagnostics,
+        )
+        return self.est_params
+
+    def predict(self, X: np.ndarray) -> dict[str, np.ndarray]:
+        if self.est_params is None:
+            raise RuntimeError("Call fit() before predict().")
+
+        features = _validate_feature_matrix(X, expected_dim=self.d)
+        feature_tensor = torch.as_tensor(features, dtype=torch.float32, device=self.device)
+        self.est_mu.eval()
+        self.est_pi.eval()
+        with torch.no_grad():
+            mu_hat = self.est_mu(feature_tensor).detach().cpu().numpy()
+            pi_hat = self.est_pi(feature_tensor).detach().cpu().numpy()
+        return {
+            "mu": mu_hat,
+            "pi": pi_hat,
+        }
+
+
+class PLMValidationSelectedDMLEstimator(Estimator):
+    """Standalone neural DML estimator with observed-data validation model selection."""
+
+    def __init__(
+        self,
+        name: str,
+        hyper_parameters: ConfigDict,
+        d: int,
+        device: str = "cpu",
+    ):
+        super().__init__(name=name, hyper_parameters=hyper_parameters)
+        if d <= 0:
+            raise ValueError("d must be a positive integer.")
+
+        self.d = d
+        self.device = _resolve_device(device)
+        self.L = int(hyper_parameters["L"])
+        self.N = int(hyper_parameters["N"])
+        self.lambda_mu = float(hyper_parameters["lambda_mu"])
+        self.lambda_pi = float(hyper_parameters["lambda_pi"])
+        self.niter = int(hyper_parameters["niter"])
+        self.lr = float(hyper_parameters.get("lr", 1e-3))
+        self.batch_size = int(hyper_parameters.get("batch_size", 1024))
+        self.seed = hyper_parameters.get("seed")
+        self.validation_check_interval = int(hyper_parameters.get("validation_check_interval", 10))
+
+        if self.niter <= 0:
+            raise ValueError("niter must be positive.")
+        if self.validation_check_interval <= 0:
+            raise ValueError("validation_check_interval must be positive.")
+
+        if self.seed is not None:
+            _set_torch_seed(int(self.seed))
+
+        self.est_mu = ResidualReLUNet(input_dim=d, depth=self.L, width=self.N).to(self.device)
+        self.est_pi = ResidualReLUNet(input_dim=d, depth=self.L, width=self.N).to(self.device)
+        self.beta = nn.Parameter(torch.zeros(1, device=self.device))
+        self.optimizer = torch.optim.Adam(
+            list(self.est_mu.parameters()) + list(self.est_pi.parameters()),
+            lr=self.lr,
+        )
+
+    def fit(self, train_data: SampledData, valid_data: SampledData | None = None) -> EstimateResult:
+        x, t, y = _extract_plm_arrays(train_data)
+        d1_x, d1_t, d1_y, d2_x, d2_t, d2_y = _split_plm_data(x, t, y)
+
+        x2_tensor = torch.as_tensor(d2_x, dtype=torch.float32, device=self.device)
+        t2_tensor = torch.as_tensor(d2_t, dtype=torch.float32, device=self.device)
+        y2_tensor = torch.as_tensor(d2_y, dtype=torch.float32, device=self.device)
+
+        validation_state = None
+        if valid_data is None:
+            warnings.warn(
+                "Validation data was not provided; PLMValidationSelectedDMLEstimator "
+                "will use final-epoch nuisance networks without validation selection.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            validation_state = _build_observed_validation_state(
+                data=valid_data,
+                d=self.d,
+                device=self.device,
+            )
+
+        dataset = TensorDataset(x2_tensor, t2_tensor, y2_tensor)
+        batch_size = min(self.batch_size, len(dataset))
+        generator = None
+        if self.seed is not None:
+            generator = torch.Generator()
+            generator.manual_seed(int(self.seed))
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            generator=generator,
+        )
+
+        last_joint_loss = float("nan")
+        last_pi_loss = float("nan")
+        full_joint_loss = float("nan")
+        full_pi_loss = float("nan")
+        validation_epoch_grid: list[int] = []
+        validation_mu_loss_path: list[float] = []
+        validation_pi_loss_path: list[float] = []
+        selected_mu_epoch: int | None = None
+        selected_pi_epoch: int | None = None
+        best_validation_mu_loss = float("inf")
+        best_validation_pi_loss = float("inf")
+        best_mu_state: dict[str, torch.Tensor] | None = None
+        best_pi_state: dict[str, torch.Tensor] | None = None
+
+        self.est_mu.train()
+        self.est_pi.train()
+        for epoch in range(1, self.niter + 1):
+            for batch_x, batch_t, batch_y in loader:
+                self.optimizer.zero_grad()
+                mu_pred = self.est_mu(batch_x)
+                pi_pred = self.est_pi(batch_x)
+                joint_loss = torch.mean((self.beta.detach() * batch_t + mu_pred - batch_y) ** 2)
+                pi_loss = torch.mean((batch_t - pi_pred) ** 2)
+                total_loss = (
+                    joint_loss
+                    + pi_loss
+                    + self.lambda_mu * _weight_l2_penalty(self.est_mu)
+                    + self.lambda_pi * _weight_l2_penalty(self.est_pi)
+                )
+                total_loss.backward()
+                self.optimizer.step()
+                last_joint_loss = float(joint_loss.detach().cpu().item())
+                last_pi_loss = float(pi_loss.detach().cpu().item())
+
+            self.est_mu.eval()
+            self.est_pi.eval()
+            with torch.no_grad():
+                mu_d2 = self.est_mu(x2_tensor)
+                pi_d2 = self.est_pi(x2_tensor)
+                profiled_beta = _profile_beta_from_tensors(
+                    t=t2_tensor,
+                    y=y2_tensor,
+                    mu=mu_d2,
+                )
+                self.beta.data.fill_(profiled_beta)
+                full_joint_loss = float(torch.mean((self.beta * t2_tensor + mu_d2 - y2_tensor) ** 2).cpu().item())
+                full_pi_loss = float(torch.mean((t2_tensor - pi_d2) ** 2).cpu().item())
+
+                should_check_validation = (
+                    validation_state is not None
+                    and (epoch % self.validation_check_interval == 0 or epoch == self.niter)
+                )
+                if should_check_validation:
+                    validation_mu_loss, validation_pi_loss = _compute_observed_validation_losses(
+                        est_mu=self.est_mu,
+                        est_pi=self.est_pi,
+                        validation_x=validation_state["x"],
+                        validation_t=validation_state["t"],
+                        validation_y=validation_state["y"],
+                    )
+                    validation_epoch_grid.append(epoch)
+                    validation_mu_loss_path.append(validation_mu_loss)
+                    validation_pi_loss_path.append(validation_pi_loss)
+                    if validation_mu_loss < best_validation_mu_loss:
+                        best_validation_mu_loss = validation_mu_loss
+                        selected_mu_epoch = epoch
+                        best_mu_state = _clone_module_state(self.est_mu)
+                    if validation_pi_loss < best_validation_pi_loss:
+                        best_validation_pi_loss = validation_pi_loss
+                        selected_pi_epoch = epoch
+                        best_pi_state = _clone_module_state(self.est_pi)
+
+            self.est_mu.train()
+            self.est_pi.train()
+
+        if best_mu_state is not None:
+            self.est_mu.load_state_dict(best_mu_state)
+        if best_pi_state is not None:
+            self.est_pi.load_state_dict(best_pi_state)
+
+        self.est_mu.eval()
+        self.est_pi.eval()
+        with torch.no_grad():
+            selected_mu_d2 = self.est_mu(x2_tensor)
+            selected_pi_d2 = self.est_pi(x2_tensor)
+            selected_beta = _profile_beta_from_tensors(
+                t=t2_tensor,
+                y=y2_tensor,
+                mu=selected_mu_d2,
+            )
+            self.beta.data.fill_(selected_beta)
+            full_joint_loss = float(torch.mean((self.beta * t2_tensor + selected_mu_d2 - y2_tensor) ** 2).cpu().item())
+            full_pi_loss = float(torch.mean((t2_tensor - selected_pi_d2) ** 2).cpu().item())
+
+            d1_x_tensor = torch.as_tensor(d1_x, dtype=torch.float32, device=self.device)
+            mu_hat = self.est_mu(d1_x_tensor).detach().cpu().numpy()
+            pi_hat = self.est_pi(d1_x_tensor).detach().cpu().numpy()
+
+        used_validation_selection = validation_state is not None
+        beta_hat = _aipw_beta(d1_y, d1_t, mu_hat, pi_hat)
+        diagnostics = {
+            "beta_joint": float(self.beta.detach().cpu().item()),
+            "final_joint_loss": full_joint_loss if np.isfinite(full_joint_loss) else last_joint_loss,
+            "final_pi_loss": full_pi_loss if np.isfinite(full_pi_loss) else last_pi_loss,
+            "n_d1": len(d1_x),
+            "n_d2": len(d2_x),
+            "device": str(self.device),
+            "validation_n": int(validation_state["x"].shape[0]) if validation_state is not None else 0,
+            "validation_check_interval": self.validation_check_interval,
+            "validation_epoch_grid": validation_epoch_grid,
+            "validation_mu_loss_path": validation_mu_loss_path,
+            "validation_pi_loss_path": validation_pi_loss_path,
+            "selected_mu_epoch": selected_mu_epoch,
+            "selected_pi_epoch": selected_pi_epoch,
+            "best_validation_mu_loss": (
+                float(best_validation_mu_loss)
+                if used_validation_selection and np.isfinite(best_validation_mu_loss)
+                else None
+            ),
+            "best_validation_pi_loss": (
+                float(best_validation_pi_loss)
+                if used_validation_selection and np.isfinite(best_validation_pi_loss)
+                else None
+            ),
+            "used_validation_selection": used_validation_selection,
+        }
         self.est_params = EstimateResult(
             target="beta",
             estimate=beta_hat,
@@ -670,6 +899,52 @@ def _compute_oracle_tracking_mse(
         float(mu_mse.detach().cpu().item()),
         float(pi_mse.detach().cpu().item()),
     )
+
+
+def _build_observed_validation_state(
+    data: SampledData,
+    d: int,
+    device: torch.device,
+) -> dict[str, torch.Tensor]:
+    """Convert observed validation arrays into tensors without using oracle fields."""
+    x, t, y = _extract_plm_arrays(data)
+    x = _validate_feature_matrix(x, expected_dim=d)
+    return {
+        "x": torch.as_tensor(x, dtype=torch.float32, device=device),
+        "t": torch.as_tensor(t, dtype=torch.float32, device=device),
+        "y": torch.as_tensor(y, dtype=torch.float32, device=device),
+    }
+
+
+def _compute_observed_validation_losses(
+    est_mu: nn.Module,
+    est_pi: nn.Module,
+    validation_x: torch.Tensor,
+    validation_t: torch.Tensor,
+    validation_y: torch.Tensor,
+) -> tuple[float, float]:
+    """Compute observed-data validation losses for separate nuisance selection."""
+    mu_pred = est_mu(validation_x)
+    pi_pred = est_pi(validation_x)
+    profiled_beta = _profile_beta_from_tensors(
+        t=validation_t,
+        y=validation_y,
+        mu=mu_pred,
+    )
+    mu_loss = torch.mean((profiled_beta * validation_t + mu_pred - validation_y) ** 2)
+    pi_loss = torch.mean((validation_t - pi_pred) ** 2)
+    return (
+        float(mu_loss.detach().cpu().item()),
+        float(pi_loss.detach().cpu().item()),
+    )
+
+
+def _clone_module_state(module: nn.Module) -> dict[str, torch.Tensor]:
+    """Clone a module state dict so later training epochs cannot mutate the snapshot."""
+    return {
+        key: value.detach().cpu().clone()
+        for key, value in module.state_dict().items()
+    }
 
 
 def _validate_feature_matrix(X: np.ndarray, expected_dim: int | None = None) -> np.ndarray:
