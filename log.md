@@ -435,3 +435,10 @@
 - Updated experiment `1.6.14` to compare validation-selected Neural DML, standard Neural DML without model selection, paper minimax-debias, and oracle AIPW in the same run.
 - Archived the previous standard-DML-only artifact as `simulation_results/plm/1.6_14_standard_dml_archive.json`, reran `1.6.14` with `10` trials per treatment-regression candidate, and regenerated the `1.6.14` figures.
 - Updated the plotting code to show multiple DML variants in the 1.5/1.6 family summaries and refreshed the experiment log with beta, nuisance, bias-variance, and selected-epoch diagnostics.
+
+
+## 2026-04-26 19:14:34 EDT
+
+- Added PLM experiment `1.7.2`, which keeps the projected `d = 5` setup from `1.7.1` but replaces the shared random Fourier coefficients with the fixed family `g_r(z) = sum_{k=1}^{10} k^{-1/r} [sin(pi k z) + cos(pi k z)] / sqrt(sum_{k=1}^{10} 2 k^{-2/r})`.
+- Implemented the `1.7.2` DGP function registry entries, evaluator builder, plotting support, evaluator tests, and the full `examples/plm/exp_log.md` report section, then ran the complete `40`-record simulation and regenerated the `1.7.2` figures.
+- Added companion preview scripts for the two alternating-sign variants `b_k = (-1)^k` and `a_k = b_k = (-1)^k` to make it easier to inspect how sign changes reshape the ground-truth family before turning them into new experiments.
