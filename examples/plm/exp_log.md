@@ -2782,3 +2782,111 @@ Generated diagnostic figures:
 
 - `examples/plm/figs/1.6/1.6.14_nuisance_validation_overlay_paths.png`
 - `examples/plm/figs/1.6/1.6.14_nuisance_in_out_average_paths.png`
+
+## 1.7.1
+
+Experiment `1.7.1`, stored in the simulation artifact `1.7_1`.
+
+### Goal
+
+This experiment introduces a shared-random projected Fourier family in ambient dimension `d = 5`. The goal is to compare the PLM estimators when the outcome regression is fixed at `mu(x) = g_1(q^\top x)` and the treatment regression varies across the roughness levels `g_r(q^\top x)` for `r in {1, 2, 4, 8}`. This allows us to keep the same random coefficient bank and projection direction while increasing the effective high-frequency content of `pi`.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 5`
+- Shared one-dimensional projection:
+  - `q` is drawn once from a standard Gaussian vector and normalized to unit Euclidean norm, so that `Var(q^\top X) = Var(Unif[-1,1])` when `X ~ Unif([-1,1]^5)`
+  - realized `q = (0.052520, 0.579907, -0.767070, -0.206127, -0.173391)`
+- Shared random Fourier coefficient bank:
+  - `a_k, b_k ~ Unif[0, 2]`, sampled once with seed `20260426`, for `k = 1, ..., 34`
+- Fourier family:
+  - `g_r(z) = {sum_{k=1}^{34} [a_k k^{-1/r} sin(pi k z) + b_k k^{-1/r} cos(pi k z)]} / sqrt(sum_{k=1}^{34} (a_k^2 + b_k^2) k^{-2/r})`
+- Outcome regression:
+  - `mu(x) = g_1(q^\top x)`
+- Treatment regression candidates:
+  - `pi_1(x) = g_1(q^\top x)`
+  - `pi_2(x) = g_2(q^\top x)`
+  - `pi_4(x) = g_4(q^\top x)`
+  - `pi_8(x) = g_8(q^\top x)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 2048`
+- Test sample size: `n_test = 10000`
+- Number of trials: `10` per treatment-regression candidate
+
+Method design:
+
+- Compared methods: validation-selected Neural DML, standard Neural DML without model selection, paper minimax-debias estimator, and Oracle AIPW
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Validation sample size for validation-selected Neural DML: `validation_n = floor(n / 3) = 682`
+- Validation-selection interval for validation-selected Neural DML: every `10` epochs, including epoch `200`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))` by default on the `D1` split
+- Optimizer: Adam with profiled closed-form updates for the joint least-squares beta on `D2`
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 2048`
+- Training epochs: `niter = 200`
+- Device: CPU by default unless explicitly changed in the simulation configuration
+
+Ground-truth family preview:
+
+- `examples/plm/figs/1.7/1.7.1_g_r_preview.png`
+
+### Results
+
+Average metrics over `10` trials for each treatment-regression candidate:
+
+| pi family | Oracle AIPW beta MSE | Validation-selected DML beta MSE | Standard DML beta MSE | Minimax debias beta MSE |
+| --- | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.001062 | 0.041062 | 0.015200 | 0.046676 |
+| `r = 2` | 0.001062 | 0.045298 | 0.025499 | 0.044750 |
+| `r = 4` | 0.001060 | 0.036063 | 0.023493 | 0.043782 |
+| `r = 8` | 0.001059 | 0.030993 | 0.022647 | 0.042193 |
+
+Nuisance MSEs for the two Neural DML variants:
+
+| pi family | Selected DML mu MSE | Selected DML pi MSE | Standard DML mu MSE | Standard DML pi MSE |
+| --- | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.425288 | 0.375127 | 0.902073 | 0.863513 |
+| `r = 2` | 0.393755 | 0.600040 | 0.924398 | 1.314070 |
+| `r = 4` | 0.376579 | 0.645104 | 0.861623 | 1.479010 |
+| `r = 8` | 0.371562 | 0.654106 | 0.841569 | 1.527620 |
+
+Bias-variance decomposition of beta estimation error over `10` trials:
+
+| pi family | Selected DML squared bias | Selected DML variance | Standard DML squared bias | Standard DML variance | Minimax squared bias | Minimax variance |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.039437 | 0.001625 | 0.011270 | 0.003930 | 0.003901 | 0.042775 |
+| `r = 2` | 0.044110 | 0.001188 | 0.023149 | 0.002351 | 0.006656 | 0.038095 |
+| `r = 4` | 0.034948 | 0.001115 | 0.019957 | 0.003536 | 0.007190 | 0.036591 |
+| `r = 8` | 0.029877 | 0.001116 | 0.019731 | 0.002915 | 0.006481 | 0.035712 |
+
+Validation-selection diagnostics for Neural DML:
+
+| pi family | Validation n | Checkpoint grid | Mean selected mu epoch | Mean selected pi epoch |
+| --- | ---: | --- | ---: | ---: |
+| `r = 1` | 682 | `10, 20, ..., 200` | 24.0 | 28.0 |
+| `r = 2` | 682 | `10, 20, ..., 200` | 26.0 | 18.0 |
+| `r = 4` | 682 | `10, 20, ..., 200` | 29.0 | 12.0 |
+| `r = 8` | 682 | `10, 20, ..., 200` | 29.0 | 12.0 |
+
+Main observations:
+
+- This projected Fourier family is substantially harder than the recent `1.6` families: oracle AIPW remains around `10^{-3}`, while all learned estimators remain between roughly `1.5e-2` and `4.7e-2`.
+- Validation-selected DML improves nuisance MSE sharply relative to standard DML in every `r` setting, but its beta MSE is worse than standard DML because its error is dominated by large squared bias rather than variance.
+- Standard DML also remains strongly biased, but it keeps a smaller bias term than validation-selected DML in this experiment, which is why it outperforms the validation-selected variant on beta MSE despite worse nuisance MSE.
+- The minimax-debias estimator is the most unstable learned method in this family: it has the largest variance across all four `r` settings and beta MSE above `0.04` throughout.
+- As `r` increases, the selected DML beta MSE decreases somewhat, while the selected `pi` nuisance MSE increases and then plateaus. This suggests the treatment-regression roughness alone is not the only driver of beta error in this projected shared-coefficient family.
+
+Generated figures:
+
+- `examples/plm/figs/1.7/1.7.1_pi_complexity_mean_mse_comparison.png`
+- `examples/plm/figs/1.7/1.7.1_pi_complexity_beta_bias_sq.png`
+- `examples/plm/figs/1.7/1.7.1_pi_complexity_beta_variance.png`
+- `examples/plm/figs/1.7/1.7.1_unified_mse_mean_curve.png`

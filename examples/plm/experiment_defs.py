@@ -758,6 +758,80 @@ def shared_residual_pi_3(x: np.ndarray) -> np.ndarray:
     return combo / _SHARED_RESIDUAL_PI_3_SCALE
 
 
+PLM_171_SHARED_SEED = 20260426
+PLM_171_NUM_TERMS = 34
+PLM_171_DIMENSION = 5
+
+
+def _build_plm_171_shared_random_family(
+    *,
+    seed: int = PLM_171_SHARED_SEED,
+    num_terms: int = PLM_171_NUM_TERMS,
+    d: int = PLM_171_DIMENSION,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return shared Fourier coefficients and a unit-norm projection vector q."""
+    rng = np.random.default_rng(seed)
+    a_coeffs = rng.uniform(0.0, 2.0, size=num_terms)
+    b_coeffs = rng.uniform(0.0, 2.0, size=num_terms)
+    q = rng.normal(size=d)
+    q /= np.linalg.norm(q)
+    return a_coeffs, b_coeffs, q
+
+
+_PLM_171_A_COEFFS, _PLM_171_B_COEFFS, _PLM_171_Q = _build_plm_171_shared_random_family()
+
+
+def _plm_171_project_onto_q(x: np.ndarray) -> np.ndarray:
+    """Project x onto the shared unit vector q used in experiment 1.7.1."""
+    x_array = np.asarray(x, dtype=float)
+    if x_array.ndim != 2 or x_array.shape[1] != PLM_171_DIMENSION:
+        raise ValueError(f"experiment_1_7_1 expects x to have shape (n, {PLM_171_DIMENSION}).")
+    return x_array @ _PLM_171_Q
+
+
+def _plm_171_g_r_from_projection(z: np.ndarray, r: float) -> np.ndarray:
+    """Evaluate the shared-random Fourier family g_r on a one-dimensional projection."""
+    if r <= 0:
+        raise ValueError("r must be positive.")
+    z_array = np.asarray(z, dtype=float).reshape(-1)
+    k = np.arange(1, PLM_171_NUM_TERMS + 1, dtype=float)
+    weights = k ** (-1.0 / float(r))
+    denominator = float(np.sqrt(np.sum((_PLM_171_A_COEFFS**2 + _PLM_171_B_COEFFS**2) * (weights**2))))
+    if denominator <= 0:
+        raise ZeroDivisionError("The experiment_1_7_1 normalization denominator must be positive.")
+    phases = np.pi * np.outer(z_array, k)
+    numerator = (
+        np.sin(phases) * (_PLM_171_A_COEFFS * weights)[None, :]
+        + np.cos(phases) * (_PLM_171_B_COEFFS * weights)[None, :]
+    )
+    return np.sum(numerator, axis=1, keepdims=True) / denominator
+
+
+def experiment_1_7_1_mu(x: np.ndarray) -> np.ndarray:
+    """Return mu(x) = g_1(q^T x) for PLM experiment 1.7.1."""
+    return _plm_171_g_r_from_projection(_plm_171_project_onto_q(x), r=1.0)
+
+
+def experiment_1_7_1_pi_1(x: np.ndarray) -> np.ndarray:
+    """Return pi_1(x) = g_1(q^T x) for PLM experiment 1.7.1."""
+    return _plm_171_g_r_from_projection(_plm_171_project_onto_q(x), r=1.0)
+
+
+def experiment_1_7_1_pi_2(x: np.ndarray) -> np.ndarray:
+    """Return pi_2(x) = g_2(q^T x) for PLM experiment 1.7.1."""
+    return _plm_171_g_r_from_projection(_plm_171_project_onto_q(x), r=2.0)
+
+
+def experiment_1_7_1_pi_4(x: np.ndarray) -> np.ndarray:
+    """Return pi_4(x) = g_4(q^T x) for PLM experiment 1.7.1."""
+    return _plm_171_g_r_from_projection(_plm_171_project_onto_q(x), r=4.0)
+
+
+def experiment_1_7_1_pi_8(x: np.ndarray) -> np.ndarray:
+    """Return pi_8(x) = g_8(q^T x) for PLM experiment 1.7.1."""
+    return _plm_171_g_r_from_projection(_plm_171_project_onto_q(x), r=8.0)
+
+
 FUNCTION_REGISTRY = {
     "sin_2pi_first_coordinate": sin_2pi_first_coordinate,
     "sin_4pi_first_coordinate": sin_4pi_first_coordinate,
@@ -857,6 +931,11 @@ FUNCTION_REGISTRY = {
     "shared_residual_pi_1": shared_residual_pi_1,
     "shared_residual_pi_2": shared_residual_pi_2,
     "shared_residual_pi_3": shared_residual_pi_3,
+    "experiment_1_7_1_mu": experiment_1_7_1_mu,
+    "experiment_1_7_1_pi_1": experiment_1_7_1_pi_1,
+    "experiment_1_7_1_pi_2": experiment_1_7_1_pi_2,
+    "experiment_1_7_1_pi_4": experiment_1_7_1_pi_4,
+    "experiment_1_7_1_pi_8": experiment_1_7_1_pi_8,
 }
 
 FUNCTION_LABELS = {
@@ -958,6 +1037,11 @@ FUNCTION_LABELS = {
     "shared_residual_pi_1": r"$s_{0.5}^{-1}\{\sin(\pi x)+0.5\,h(x)\}$",
     "shared_residual_pi_2": r"$s_{1.0}^{-1}\{\sin(\pi x)+1.0\,h(x)\}$",
     "shared_residual_pi_3": r"$s_{2.0}^{-1}\{\sin(\pi x)+2.0\,h(x)\}$",
+    "experiment_1_7_1_mu": r"$g_1(q^\top x)$",
+    "experiment_1_7_1_pi_1": r"$g_1(q^\top x)$",
+    "experiment_1_7_1_pi_2": r"$g_2(q^\top x)$",
+    "experiment_1_7_1_pi_4": r"$g_4(q^\top x)$",
+    "experiment_1_7_1_pi_8": r"$g_8(q^\top x)$",
 }
 
 
@@ -3982,6 +4066,115 @@ def build_experiment_1_6_14_tracking(
     )
 
 
+def build_experiment_1_7_1(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build the shared-random projected Fourier family for PLM experiment 1.7.1."""
+    unit_variance_scale = math.sqrt(3.0)
+    dgp_param_grid = {
+        "d": PLM_171_DIMENSION,
+        "func_mu_name": "experiment_1_7_1_mu",
+        "func_pi_name": [
+            "experiment_1_7_1_pi_1",
+            "experiment_1_7_1_pi_2",
+            "experiment_1_7_1_pi_4",
+            "experiment_1_7_1_pi_8",
+        ],
+        "beta_sampler_name": "uniform",
+        "beta_low": -0.5,
+        "beta_high": 0.5,
+        "sigma_u": unit_variance_scale,
+        "sigma_eps": unit_variance_scale,
+        "n_test": 10000,
+        "n": [2048],
+    }
+
+    dml_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 2048,
+        "validation_check_interval": 10,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": PLM_171_DIMENSION,
+    }
+
+    minimax_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 2048,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": PLM_171_DIMENSION,
+        "variance_mode": "constant_one",
+    }
+
+    oracle_method_config = {
+        "func_mu_name": "experiment_1_7_1_mu",
+        "func_pi_name": None,
+        "follows_dgp_pi": True,
+    }
+
+    estimators = [
+        {
+            "name": "dml_nn_valid_select",
+            "is_oracle": False,
+            "factory_name": "make_plm_validation_selected_dml_estimator",
+            "method_config": deepcopy(dml_method_config),
+            "accepts_trial_seed": True,
+            "accepts_validation_data": True,
+            "factory": _make_trial_seeded_valid_select_dml_factory(dml_method_config),
+        },
+        {
+            "name": "dml_nn",
+            "is_oracle": False,
+            "factory_name": "make_plm_dml_estimator",
+            "method_config": deepcopy(dml_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_dml_factory(dml_method_config),
+        },
+        {
+            "name": "plm_minimax_debias",
+            "is_oracle": False,
+            "factory_name": "make_plm_minimax_debias_estimator",
+            "method_config": deepcopy(minimax_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_minimax_factory(minimax_method_config),
+        },
+        {
+            "name": "oracle_aipw",
+            "is_oracle": True,
+            "factory_name": "make_plm_oracle_estimator",
+            "method_config": deepcopy(oracle_method_config),
+            "accepts_dgp_config": True,
+            "factory": _make_oracle_factory(oracle_method_config),
+        },
+    ]
+
+    return PLMEvaluator(
+        exp_name=EXPERIMENT_NAME,
+        exp_id=exp_id,
+        dgp_generator=plm_uniform_noise_dgp_generator,
+        dgp_param_grid=dgp_param_grid,
+        estimators=estimators,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        result_root=result_root,
+    )
+
+
 EXPERIMENT_FAMILY_BUILDERS = {
     "1.1": build_experiment_1_1,
     "1.2": build_experiment_1_2,
@@ -3989,6 +4182,7 @@ EXPERIMENT_FAMILY_BUILDERS = {
     "1.4": build_experiment_1_4_1,
     "1.5": build_experiment_1_5,
     "1.6": build_experiment_1_6_1,
+    "1.7": build_experiment_1_7_1,
 }
 
 EXPERIMENT_ID_BUILDERS = {
@@ -4030,6 +4224,7 @@ EXPERIMENT_ID_BUILDERS = {
     "1.6_13_tracking": build_experiment_1_6_13_tracking,
     "1.6_14": build_experiment_1_6_14,
     "1.6_14_tracking": build_experiment_1_6_14_tracking,
+    "1.7_1": build_experiment_1_7_1,
 }
 
 

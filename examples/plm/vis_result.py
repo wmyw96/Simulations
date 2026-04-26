@@ -182,7 +182,7 @@ def main() -> None:
             results=results,
         )
         return
-    if family_display_id in {"1.5", "1.6"}:
+    if family_display_id in {"1.5", "1.6", "1.7"}:
         _plot_family_15_pi_complexity(
             display_exp_id=display_exp_id,
             fig_dir=fig_dir,
@@ -944,7 +944,7 @@ def _plot_family_15_pi_complexity(
         title_suffix="variance of beta estimation error",
         filename_stem="pi_complexity_beta_variance",
     )
-    if display_exp_id in {"1.6.12", "1.6.13", "1.6.14"}:
+    if display_exp_id in {"1.6.12", "1.6.13", "1.6.14", "1.7.1"}:
         _plot_family_1612_unified_mean_curves(
             display_exp_id=display_exp_id,
             fig_dir=fig_dir,
