@@ -497,3 +497,9 @@
 - Added the `1.7.7` experiment bundle as a 30-trial revisit of the `1.7.5` projected tanh-wrapped PLM design, with aliases for the main estimator comparison, the DML nuisance-tracking diagnostic, and the minimax beta-path ablation.
 - Seeded the new `1.7.7` artifacts from the existing 10-trial runs with matching configurations, extended all three branches to the full `30` trials per treatment-regression family, and regenerated the full figure suite under `examples/plm/figs/1.7/`.
 - Updated `examples/plm/exp_log.md` with the combined 30-trial summary tables for the estimator comparison, DML curve, and minimax curve, plus the new 1.7.7 observations.
+
+## 2026-04-27 18:37:54 EDT
+
+- Added the `1.7.8` PLM experiment bundle as the `1.7.7` projected tanh-wrapped design with the smoother outcome regression `mu(x) = f_{0.6}(w^T x)`, while keeping the same four `pi_r` families, `d = 3`, `n = 2048`, and `30` trials per family.
+- Implemented dedicated evaluator builders and normalization coverage for `1.7_8`, `1.7_8_tracking`, and `1.7_8_minimax`, then regenerated the full `1.7.8` figure suite after running the main estimator comparison, the DML nuisance-path diagnostic, and the minimax beta-path ablation.
+- Updated `examples/plm/exp_log.md` with the full `1.7.8` summary tables, including the learned-estimator comparison, the DML nuisance-path minima, and the minimax checkpoint-level beta-path summary.
