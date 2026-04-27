@@ -473,3 +473,9 @@
 
 - Added PLM experiment `1.7.5`, which projects the tanh-wrapped alternating-sign family onto the fixed direction `w = (1, 1, 1) / sqrt(3)` in ambient dimension `d = 3`, with `mu(x) = f_{0.8}(w^T x)` and `pi_r(x) = f_r(w^T x)`.
 - Implemented the new DGP function registry entries, evaluator builder, visualization hook, evaluator tests, and experiment-log section, then ran the full `40`-record `1.7.5` sweep and regenerated the associated `1.7.5` figures.
+
+## 2026-04-27 10:01:12 EDT
+
+- Added a dedicated PLM tracking experiment `1.7_5_tracking` that reuses the `1.7.5` DGP and records oracle nuisance MSE paths for `mu` and `pi` on an independent validation sample at every training epoch.
+- Extended the evaluator tests to cover the new tracking identifier and configuration, then ran the full `40`-record tracking sweep and regenerated the averaged nuisance-path figure for `1.7.5`.
+- Updated `examples/plm/exp_log.md` with a short diagnostic section summarizing where the validation-average nuisance curves attain their minima and how the `pi` path degrades as `r` increases.

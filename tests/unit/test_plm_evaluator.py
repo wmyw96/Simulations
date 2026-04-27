@@ -41,6 +41,7 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(normalize_exp_id("1.7.3"), ("1.7_3", "1.7.3"))
         self.assertEqual(normalize_exp_id("1.7.4"), ("1.7_4", "1.7.4"))
         self.assertEqual(normalize_exp_id("1.7.5"), ("1.7_5", "1.7.5"))
+        self.assertEqual(normalize_exp_id("1.7_5_tracking"), ("1.7_5_tracking", "1.7.5.tracking"))
 
         evaluator = build_evaluator_from_exp_id(
             exp_id="1.1.2",
@@ -1123,6 +1124,35 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertTrue(evaluator_17_5.estimators[0]["accepts_trial_seed"])
         self.assertTrue(evaluator_17_5.estimators[0]["accepts_validation_data"])
         self.assertTrue(evaluator_17_5.estimators[1]["accepts_trial_seed"])
+
+        evaluator_17_5_tracking = build_evaluator_from_exp_id(
+            exp_id="1.7_5_tracking",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_17_5_tracking.exp_id, "1.7_5_tracking")
+        self.assertEqual(evaluator_17_5_tracking.result_path.name, "1.7_5_tracking.json")
+        self.assertEqual(evaluator_17_5_tracking.dgp_param_grid["d"], 3)
+        self.assertEqual(evaluator_17_5_tracking.dgp_param_grid["func_mu_name"], "experiment_1_7_5_mu")
+        self.assertEqual(
+            evaluator_17_5_tracking.dgp_param_grid["func_pi_name"],
+            [
+                "experiment_1_7_5_pi_1",
+                "experiment_1_7_5_pi_2",
+                "experiment_1_7_5_pi_4",
+                "experiment_1_7_5_pi_8",
+            ],
+        )
+        self.assertEqual(evaluator_17_5_tracking.dgp_param_grid["n"], [2048])
+        self.assertEqual(len(evaluator_17_5_tracking.estimators), 1)
+        self.assertEqual(evaluator_17_5_tracking.estimators[0]["name"], "dml_nn_tracking_1_7_5")
+        self.assertTrue(evaluator_17_5_tracking.estimators[0]["is_oracle"])
+        self.assertTrue(evaluator_17_5_tracking.estimators[0]["accepts_trial_seed"])
+        tracking_config = evaluator_17_5_tracking.estimators[0]["method_config"]
+        self.assertEqual(tracking_config["tracking_source"], "validation")
+        self.assertEqual(tracking_config["validation_n"], 2048)
+        self.assertEqual(tracking_config["batch_size"], 2048)
         self.assertTrue(evaluator_17_5.estimators[2]["accepts_trial_seed"])
         self.assertTrue(evaluator_17_5.estimators[3]["accepts_dgp_config"])
 

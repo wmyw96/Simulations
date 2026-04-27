@@ -3296,3 +3296,22 @@ Generated figures:
 - `examples/plm/figs/1.7/1.7.5_pi_complexity_beta_bias_sq.png`
 - `examples/plm/figs/1.7/1.7.5_pi_complexity_beta_variance.png`
 - `examples/plm/figs/1.7/1.7.5_unified_mse_mean_curve.png`
+
+### Nuisance-learning diagnostic
+
+Diagnostic artifact: `simulation_results/plm/1.7_5_tracking.json`.
+
+This follow-up keeps the same `1.7.5` DGP and neural-network hyper-parameters, but replaces the comparison of final estimators by a single oracle tracking estimator. For each trial and each treatment-regression candidate, the estimator records the oracle nuisance MSE of `mu` and `pi` at every epoch on an independent validation sample of size `2048`. The plotting script then averages those epoch paths over all `10` trials and overlays the four `r` settings in one log-scale figure.
+
+Main tracking observations from the validation-average paths:
+
+- The average `mu` curve is nearly identical across all four `pi_r` settings, which is expected because `mu(x) = f_{0.8}(w^\top x)` is unchanged across the whole experiment.
+- The average `mu` validation MSE drops rapidly from about `0.47` at epoch `0` to its minimum near epochs `37` to `38`, with minimum values around `0.10`, and then rises again by epoch `200`.
+- The average `pi` validation MSE also improves fastest in the first few dozen epochs, reaching its minimum around epoch `27` for all four `r` settings.
+- As `r` increases, the best achievable `pi` validation MSE worsens substantially: about `0.128` for `r = 1`, `0.224` for `r = 2`, `0.287` for `r = 4`, and `0.318` for `r = 8`.
+- After those minima, the `pi` curves drift upward, especially for `r = 4` and `r = 8`, which is consistent with the validation-selected DML runs preferring much earlier nuisance checkpoints than the fixed final epoch.
+
+Generated tracking figures:
+
+- `examples/plm/figs/1.7/1.7.5_nuisance_validation_overlay_paths.png`
+- `examples/plm/figs/1.7/1.7.5_nuisance_in_out_average_paths.png`

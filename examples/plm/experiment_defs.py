@@ -4838,6 +4838,71 @@ def build_experiment_1_7_5(
     )
 
 
+def build_experiment_1_7_5_tracking(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build the validation nuisance tracking diagnostic for 1.7.5."""
+    unit_variance_scale = math.sqrt(3.0)
+    dgp_param_grid = {
+        "d": PLM_175_DIMENSION,
+        "func_mu_name": "experiment_1_7_5_mu",
+        "func_pi_name": [
+            "experiment_1_7_5_pi_1",
+            "experiment_1_7_5_pi_2",
+            "experiment_1_7_5_pi_4",
+            "experiment_1_7_5_pi_8",
+        ],
+        "beta_sampler_name": "uniform",
+        "beta_low": -0.5,
+        "beta_high": 0.5,
+        "sigma_u": unit_variance_scale,
+        "sigma_eps": unit_variance_scale,
+        "n_test": 10000,
+        "n": [2048],
+    }
+
+    tracking_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "tracking_source": "validation",
+        "validation_n": 2048,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 2048,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": PLM_175_DIMENSION,
+    }
+
+    estimators = [
+        {
+            "name": "dml_nn_tracking_1_7_5",
+            "is_oracle": True,
+            "factory_name": "make_plm_dml_tracking_estimator",
+            "method_config": deepcopy(tracking_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_tracking_factory(tracking_method_config),
+        },
+    ]
+
+    return PLMEvaluator(
+        exp_name=EXPERIMENT_NAME,
+        exp_id=exp_id,
+        dgp_generator=plm_uniform_noise_dgp_generator,
+        dgp_param_grid=dgp_param_grid,
+        estimators=estimators,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        result_root=result_root,
+    )
+
+
 EXPERIMENT_FAMILY_BUILDERS = {
     "1.1": build_experiment_1_1,
     "1.2": build_experiment_1_2,
@@ -4892,6 +4957,7 @@ EXPERIMENT_ID_BUILDERS = {
     "1.7_3": build_experiment_1_7_3,
     "1.7_4": build_experiment_1_7_4,
     "1.7_5": build_experiment_1_7_5,
+    "1.7_5_tracking": build_experiment_1_7_5_tracking,
 }
 
 
