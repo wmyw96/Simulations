@@ -42,6 +42,7 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(normalize_exp_id("1.7.4"), ("1.7_4", "1.7.4"))
         self.assertEqual(normalize_exp_id("1.7.5"), ("1.7_5", "1.7.5"))
         self.assertEqual(normalize_exp_id("1.7_5_tracking"), ("1.7_5_tracking", "1.7.5.tracking"))
+        self.assertEqual(normalize_exp_id("1.7.6"), ("1.7_6", "1.7.6"))
 
         evaluator = build_evaluator_from_exp_id(
             exp_id="1.1.2",
@@ -1155,6 +1156,36 @@ class PLMEvaluatorTests(unittest.TestCase):
         self.assertEqual(tracking_config["batch_size"], 2048)
         self.assertTrue(evaluator_17_5.estimators[2]["accepts_trial_seed"])
         self.assertTrue(evaluator_17_5.estimators[3]["accepts_dgp_config"])
+
+        evaluator_17_6 = build_evaluator_from_exp_id(
+            exp_id="1.7.6",
+            n_trials=1,
+            seed_offset=0,
+            device="cpu",
+        )
+        self.assertEqual(evaluator_17_6.exp_id, "1.7_6")
+        self.assertEqual(evaluator_17_6.result_path.name, "1.7_6.json")
+        self.assertEqual(evaluator_17_6.dgp_param_grid["d"], 3)
+        self.assertEqual(evaluator_17_6.dgp_param_grid["func_mu_name"], "experiment_1_7_5_mu")
+        self.assertEqual(
+            evaluator_17_6.dgp_param_grid["func_pi_name"],
+            [
+                "experiment_1_7_5_pi_1",
+                "experiment_1_7_5_pi_2",
+                "experiment_1_7_5_pi_4",
+                "experiment_1_7_5_pi_8",
+            ],
+        )
+        self.assertEqual(evaluator_17_6.dgp_param_grid["n"], [2048])
+        self.assertEqual(len(evaluator_17_6.estimators), 1)
+        self.assertEqual(evaluator_17_6.estimators[0]["name"], "plm_minimax_debias_tracking")
+        self.assertTrue(evaluator_17_6.estimators[0]["is_oracle"])
+        self.assertTrue(evaluator_17_6.estimators[0]["accepts_trial_seed"])
+        minimax_tracking_config = evaluator_17_6.estimators[0]["method_config"]
+        self.assertEqual(minimax_tracking_config["tracking_source"], "validation")
+        self.assertEqual(minimax_tracking_config["validation_n"], 2048)
+        self.assertEqual(minimax_tracking_config["tracking_interval"], 10)
+        self.assertEqual(minimax_tracking_config["batch_size"], 2048)
 
     def test_run_and_resume_without_duplicate_trials(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

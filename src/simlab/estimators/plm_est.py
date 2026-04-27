@@ -604,6 +604,8 @@ class PLMMinimaxDebiasEstimator(PLMDMLEstimator):
         self.debias_lr = float(hyper_parameters.get("debias_lr", self.lr))
         self.smooth_eps = float(hyper_parameters.get("smooth_eps", 1e-6))
         self.variance_mode = str(hyper_parameters.get("variance_mode", "constant_one"))
+        self.tracking_interval = int(hyper_parameters.get("tracking_interval", 10))
+        self.tracking_source = str(hyper_parameters.get("tracking_source", "D2"))
 
         if self.weight_bound <= 0:
             raise ValueError("weight_bound must be positive.")
@@ -613,13 +615,25 @@ class PLMMinimaxDebiasEstimator(PLMDMLEstimator):
             raise ValueError("niter_adversary must be positive.")
         if self.debias_lr <= 0:
             raise ValueError("debias_lr must be positive.")
+        if self.tracking_interval <= 0:
+            raise ValueError("tracking_interval must be positive.")
+        if self.tracking_source not in {"D2", "validation"}:
+            raise ValueError("tracking_source must be either 'D2' or 'validation'.")
         if self.variance_mode != "constant_one":
             raise ValueError("Only variance_mode='constant_one' is currently supported.")
 
     def fit(self, data: SampledData) -> EstimateResult:
+        return self._fit_internal(data=data, record_epoch_paths=False)
+
+    def _fit_internal(
+        self,
+        data: SampledData,
+        record_epoch_paths: bool,
+    ) -> EstimateResult:
         x, t, y = _extract_plm_arrays(data)
         d1_x, d1_t, d1_y, d2_x, d2_t, d2_y = _split_plm_data(x, t, y)
 
+        d1_x_tensor = torch.as_tensor(d1_x, dtype=torch.float32, device=self.device)
         x2_tensor = torch.as_tensor(d2_x, dtype=torch.float32, device=self.device)
         t2_tensor = torch.as_tensor(d2_t, dtype=torch.float32, device=self.device)
         y2_tensor = torch.as_tensor(d2_y, dtype=torch.float32, device=self.device)
@@ -641,10 +655,65 @@ class PLMMinimaxDebiasEstimator(PLMDMLEstimator):
         last_pi_loss = float("nan")
         full_joint_loss = float("nan")
         full_pi_loss = float("nan")
+        epoch_grid: list[int] = []
+        mu_mse_path: list[float] = []
+        beta_path: list[float] = []
+        debias_weights_list: list[float] | None = None
+        tracking_state: dict[str, Any] | None = None
+
+        lambda_debias = (
+            float(self.lambda_debias)
+            if self.lambda_debias is not None
+            else _default_lambda_debias(len(d1_x))
+        )
+        a_hat: np.ndarray | None = None
+        debias_diagnostics: dict[str, Any] = {}
+
+        def record_checkpoint(epoch: int) -> None:
+            if tracking_state is None or a_hat is None:
+                raise RuntimeError("Tracking checkpoint requested before tracking state or debias weights were created.")
+            self.est_mu.eval()
+            with torch.no_grad():
+                tracked_mu_mse = _compute_oracle_mu_tracking_mse(
+                    est_mu=self.est_mu,
+                    tracking_x=tracking_state["x"],
+                    tracking_mu=tracking_state["mu"],
+                )
+                current_mu_d1 = self.est_mu(d1_x_tensor).detach().cpu().numpy()
+            beta_checkpoint = float(np.mean((d1_y - current_mu_d1) * a_hat))
+            epoch_grid.append(int(epoch))
+            mu_mse_path.append(tracked_mu_mse)
+            beta_path.append(beta_checkpoint)
+
+        if record_epoch_paths:
+            tracking_state = _build_oracle_mu_tracking_state(
+                data=data,
+                n_total=len(x),
+                device=self.device,
+                tracking_source=self.tracking_source,
+            )
+            a_hat, debias_diagnostics = _fit_minimax_debiasing_weights(
+                x=d1_x,
+                t=d1_t,
+                est_mu=self.est_mu,
+                d=self.d,
+                depth=self.L,
+                width=self.N,
+                device=self.device,
+                weight_bound=self.weight_bound,
+                lambda_debias=lambda_debias,
+                niter_debias=self.niter_debias,
+                niter_adversary=self.niter_adversary,
+                debias_lr=self.debias_lr,
+                smooth_eps=self.smooth_eps,
+                seed=self.seed,
+            )
+            debias_weights_list = a_hat.reshape(-1).astype(float).tolist()
+            record_checkpoint(0)
 
         self.est_mu.train()
         self.est_pi.train()
-        for _ in range(self.niter):
+        for epoch in range(self.niter):
             for batch_x, batch_t, batch_y in loader:
                 self.optimizer.zero_grad()
                 mu_pred = self.est_mu(batch_x)
@@ -678,33 +747,31 @@ class PLMMinimaxDebiasEstimator(PLMDMLEstimator):
             self.est_mu.train()
             self.est_pi.train()
 
+            if record_epoch_paths and ((epoch + 1) % self.tracking_interval == 0 or epoch + 1 == self.niter):
+                record_checkpoint(epoch + 1)
+
         self.est_mu.eval()
         self.est_pi.eval()
         with torch.no_grad():
-            d1_x_tensor = torch.as_tensor(d1_x, dtype=torch.float32, device=self.device)
             mu_hat = self.est_mu(d1_x_tensor).detach().cpu().numpy()
 
-        lambda_debias = (
-            float(self.lambda_debias)
-            if self.lambda_debias is not None
-            else _default_lambda_debias(len(d1_x))
-        )
-        a_hat, debias_diagnostics = _fit_minimax_debiasing_weights(
-            x=d1_x,
-            t=d1_t,
-            est_mu=self.est_mu,
-            d=self.d,
-            depth=self.L,
-            width=self.N,
-            device=self.device,
-            weight_bound=self.weight_bound,
-            lambda_debias=lambda_debias,
-            niter_debias=self.niter_debias,
-            niter_adversary=self.niter_adversary,
-            debias_lr=self.debias_lr,
-            smooth_eps=self.smooth_eps,
-            seed=self.seed,
-        )
+        if a_hat is None:
+            a_hat, debias_diagnostics = _fit_minimax_debiasing_weights(
+                x=d1_x,
+                t=d1_t,
+                est_mu=self.est_mu,
+                d=self.d,
+                depth=self.L,
+                width=self.N,
+                device=self.device,
+                weight_bound=self.weight_bound,
+                lambda_debias=lambda_debias,
+                niter_debias=self.niter_debias,
+                niter_adversary=self.niter_adversary,
+                debias_lr=self.debias_lr,
+                smooth_eps=self.smooth_eps,
+                seed=self.seed,
+            )
 
         beta_hat = float(np.mean((d1_y - mu_hat) * a_hat))
         diagnostics = {
@@ -718,12 +785,33 @@ class PLMMinimaxDebiasEstimator(PLMDMLEstimator):
             "lambda_debias": lambda_debias,
             **debias_diagnostics,
         }
+        if record_epoch_paths:
+            if tracking_state is None or debias_weights_list is None:
+                raise RuntimeError("Tracking diagnostics were requested but not initialized.")
+            diagnostics.update(
+                {
+                    "epoch_grid": epoch_grid,
+                    "mu_mse_path": mu_mse_path,
+                    "beta_path": beta_path,
+                    "tracking_split": str(tracking_state["label"]),
+                    "tracking_n": int(tracking_state["tracking_n"]),
+                    "tracking_interval": int(self.tracking_interval),
+                    "debias_weights": debias_weights_list,
+                }
+            )
         self.est_params = EstimateResult(
             target="beta",
             estimate=beta_hat,
             diagnostics=diagnostics,
         )
         return self.est_params
+
+
+class PLMMinimaxDebiasTrackingEstimator(PLMMinimaxDebiasEstimator):
+    """Minimax debias estimator variant that records oracle mu MSE and beta paths."""
+
+    def fit(self, data: SampledData) -> EstimateResult:
+        return self._fit_internal(data=data, record_epoch_paths=True)
 
 
 def _resolve_device(device: str) -> torch.device:
@@ -840,6 +928,55 @@ def _fit_minimax_debiasing_weights(
         "final_stability_term": final_stability,
     }
     return a_hat, diagnostics
+
+
+def _build_oracle_mu_tracking_state(
+    data: SampledData,
+    n_total: int,
+    device: torch.device,
+    tracking_source: str,
+) -> dict[str, Any]:
+    """Build one oracle mu-tracking state on either D2 or validation data."""
+    if tracking_source == "validation":
+        validation_keys = {"validation_x", "validation_mu_x"}
+        if not validation_keys.issubset(data.oracle):
+            raise KeyError(
+                "Validation mu tracking requires oracle keys 'validation_x' and 'validation_mu_x'."
+            )
+        tracking_x = _validate_feature_matrix(data.oracle["validation_x"])
+        tracking_mu = _as_float_column(
+            data.oracle["validation_mu_x"],
+            len(tracking_x),
+            label="validation oracle mu_x",
+        )
+        label = "validation"
+    elif tracking_source == "D2":
+        if "mu_x" not in data.oracle:
+            raise KeyError("Oracle mu tracking requires the oracle key 'mu_x' in the sampled data.")
+        split = n_total // 2
+        tracking_x = _validate_feature_matrix(data.observed["x"][split:])
+        tracking_mu = _as_float_column(data.oracle["mu_x"], n_total, label="oracle mu_x")[split:]
+        label = "D2"
+    else:
+        raise ValueError("tracking_source must be either 'D2' or 'validation'.")
+
+    return {
+        "label": label,
+        "tracking_n": int(len(tracking_x)),
+        "x": torch.as_tensor(tracking_x, dtype=torch.float32, device=device),
+        "mu": torch.as_tensor(tracking_mu, dtype=torch.float32, device=device),
+    }
+
+
+def _compute_oracle_mu_tracking_mse(
+    est_mu: nn.Module,
+    tracking_x: torch.Tensor,
+    tracking_mu: torch.Tensor,
+) -> float:
+    """Compute oracle mu MSE for one minimax-tracking checkpoint."""
+    mu_pred = est_mu(tracking_x)
+    mu_mse = torch.mean((mu_pred - tracking_mu) ** 2)
+    return float(mu_mse.detach().cpu().item())
 
 
 def _build_oracle_tracking_states(

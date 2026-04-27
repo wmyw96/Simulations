@@ -13,6 +13,7 @@ from simlab.estimators.plm_est import (
     PLMDMLEstimator,
     PLMDMLOracleTrackingEstimator,
     PLMMinimaxDebiasEstimator,
+    PLMMinimaxDebiasTrackingEstimator,
     PLMOracleAIPWEstimator,
     PLMValidationSelectedDMLEstimator,
 )
@@ -1417,6 +1418,35 @@ def make_plm_minimax_debias_estimator(method_config: dict) -> PLMMinimaxDebiasEs
     )
 
 
+def make_plm_minimax_tracking_estimator(method_config: dict) -> PLMMinimaxDebiasTrackingEstimator:
+    """Construct the paper-style minimax estimator with mu/beta tracking diagnostics."""
+    hyper_parameters = {
+        "L": method_config["L"],
+        "N": method_config["N"],
+        "lambda_mu": method_config["lambda_mu"],
+        "lambda_pi": method_config["lambda_pi"],
+        "niter": method_config["niter"],
+        "lr": method_config["lr"],
+        "batch_size": method_config["batch_size"],
+        "seed": method_config.get("seed"),
+        "lambda_debias": method_config.get("lambda_debias"),
+        "weight_bound": method_config.get("weight_bound", 5.0),
+        "niter_debias": method_config.get("niter_debias", method_config["niter"]),
+        "niter_adversary": method_config.get("niter_adversary", 5),
+        "debias_lr": method_config.get("debias_lr", method_config["lr"]),
+        "smooth_eps": method_config.get("smooth_eps", 1e-6),
+        "variance_mode": method_config.get("variance_mode", "constant_one"),
+        "tracking_interval": method_config.get("tracking_interval", 10),
+        "tracking_source": method_config.get("tracking_source", "validation"),
+    }
+    return PLMMinimaxDebiasTrackingEstimator(
+        name="plm_minimax_debias_tracking",
+        hyper_parameters=hyper_parameters,
+        d=int(method_config["d"]),
+        device=str(method_config.get("device", "cpu")),
+    )
+
+
 def _make_trial_seeded_dml_factory(method_config: dict):
     """Return a factory that injects the trial seed into the DML estimator config."""
     base_config = deepcopy(method_config)
@@ -1505,6 +1535,19 @@ def _make_trial_seeded_minimax_factory(method_config: dict):
         if trial_seed is not None:
             config["seed"] = int(trial_seed)
         return make_plm_minimax_debias_estimator(config)
+
+    return factory
+
+
+def _make_trial_seeded_minimax_tracking_factory(method_config: dict):
+    """Return a factory that injects the trial seed into the minimax tracking estimator config."""
+    base_config = deepcopy(method_config)
+
+    def factory(*, trial_seed: int | None = None) -> PLMMinimaxDebiasTrackingEstimator:
+        config = deepcopy(base_config)
+        if trial_seed is not None:
+            config["seed"] = int(trial_seed)
+        return make_plm_minimax_tracking_estimator(config)
 
     return factory
 
@@ -4903,6 +4946,73 @@ def build_experiment_1_7_5_tracking(
     )
 
 
+def build_experiment_1_7_6(
+    exp_id: str,
+    n_trials: int,
+    seed_offset: int = 0,
+    device: str = "cpu",
+    result_root: str | Path = DEFAULT_RESULT_ROOT,
+) -> PLMEvaluator:
+    """Build the minimax ablation diagnostic for the projected tanh-wrapped family."""
+    unit_variance_scale = math.sqrt(3.0)
+    dgp_param_grid = {
+        "d": PLM_175_DIMENSION,
+        "func_mu_name": "experiment_1_7_5_mu",
+        "func_pi_name": [
+            "experiment_1_7_5_pi_1",
+            "experiment_1_7_5_pi_2",
+            "experiment_1_7_5_pi_4",
+            "experiment_1_7_5_pi_8",
+        ],
+        "beta_sampler_name": "uniform",
+        "beta_low": -0.5,
+        "beta_high": 0.5,
+        "sigma_u": unit_variance_scale,
+        "sigma_eps": unit_variance_scale,
+        "n_test": 10000,
+        "n": [2048],
+    }
+
+    minimax_tracking_method_config = {
+        "L": 3,
+        "N": 512,
+        "lambda_mu": 2e-5,
+        "lambda_pi": 2e-5,
+        "tracking_source": "validation",
+        "tracking_interval": 10,
+        "validation_n": 2048,
+        "niter": 200,
+        "lr": 1e-3,
+        "batch_size": 2048,
+        "device": device,
+        "seed_mode": "trial_seed",
+        "d": PLM_175_DIMENSION,
+        "variance_mode": "constant_one",
+    }
+
+    estimators = [
+        {
+            "name": "plm_minimax_debias_tracking",
+            "is_oracle": True,
+            "factory_name": "make_plm_minimax_tracking_estimator",
+            "method_config": deepcopy(minimax_tracking_method_config),
+            "accepts_trial_seed": True,
+            "factory": _make_trial_seeded_minimax_tracking_factory(minimax_tracking_method_config),
+        },
+    ]
+
+    return PLMEvaluator(
+        exp_name=EXPERIMENT_NAME,
+        exp_id=exp_id,
+        dgp_generator=plm_uniform_noise_dgp_generator,
+        dgp_param_grid=dgp_param_grid,
+        estimators=estimators,
+        n_trials=n_trials,
+        seed_offset=seed_offset,
+        result_root=result_root,
+    )
+
+
 EXPERIMENT_FAMILY_BUILDERS = {
     "1.1": build_experiment_1_1,
     "1.2": build_experiment_1_2,
@@ -4958,6 +5068,7 @@ EXPERIMENT_ID_BUILDERS = {
     "1.7_4": build_experiment_1_7_4,
     "1.7_5": build_experiment_1_7_5,
     "1.7_5_tracking": build_experiment_1_7_5_tracking,
+    "1.7_6": build_experiment_1_7_6,
 }
 
 

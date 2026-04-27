@@ -3315,3 +3315,69 @@ Generated tracking figures:
 
 - `examples/plm/figs/1.7/1.7.5_nuisance_validation_overlay_paths.png`
 - `examples/plm/figs/1.7/1.7.5_nuisance_in_out_average_paths.png`
+
+## 1.7.6
+
+Experiment `1.7.6`, stored in the simulation artifact `1.7_6`.
+
+### Goal
+
+This experiment is an ablation study for the paper minimax-debias estimator on the same projected tanh-wrapped family as `1.7.5`. The goal is to separate the effect of learning the outcome regression `mu(x)` from the effect of the empirical debiasing weights `a_i`, and to see how the resulting minimax beta error evolves over the training path for different treatment-regression complexities.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 3`
+- Fixed projection:
+  - `w = (1, 1, 1) / sqrt(3)`
+- Tanh-wrapped family:
+  - `mu(x) = f_{0.8}(w^\top x)`
+  - `pi_1(x) = f_1(w^\top x)`
+  - `pi_2(x) = f_2(w^\top x)`
+  - `pi_4(x) = f_4(w^\top x)`
+  - `pi_8(x) = f_8(w^\top x)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Training sample size: `n = 2048`
+- Validation tracking sample size: `2048`
+- Number of trials: `10` per treatment-regression candidate
+
+Method design:
+
+- Tracked method: paper minimax-debias estimator only
+- Neural network depth: `L = 3`
+- Neural network width: `N = 512`
+- Outcome-network regularization: `lambda_mu = 2e-5`
+- Treatment-network regularization: `lambda_pi = 2e-5`
+- Paper debiasing penalty: `lambda_debias = 1 / (sqrt(n) * log_2(n))`
+- Optimizer: Adam
+- Learning rate: `lr = 1e-3`
+- Mini-batch size: `batch_size = 2048`
+- Training epochs: `niter = 200`
+- Tracking grid: epochs `0, 10, 20, ..., 200`
+- Debiasing-weight construction: the empirical weights `a_i` are solved once on the `D1` split for each trial and then held fixed while the `D2` outcome network continues training. The saved beta path is therefore the minimax beta estimate induced by the current `mu` iterate and the fixed trial-specific empirical weights.
+
+### Results
+
+Average path summaries over `10` trials:
+
+| pi family | mu MSE at epoch 0 | Minimum average mu MSE | Epoch of minimum mu MSE | Minimum average beta MSE | Epoch of minimum beta MSE | Beta MSE at epoch 200 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.469836 | 0.118283 | 130 | 0.001830 | 90 | 0.002675 |
+| `r = 2` | 0.469836 | 0.140610 | 20 | 0.001574 | 110 | 0.002093 |
+| `r = 4` | 0.469836 | 0.138497 | 20 | 0.001749 | 110 | 0.002489 |
+| `r = 8` | 0.469836 | 0.138043 | 20 | 0.001764 | 110 | 0.002616 |
+
+Main observations:
+
+- For `r = 2, 4, 8`, the average validation oracle `mu` MSE reaches its minimum very early, around epoch `20`, and then deteriorates steadily, ending above `0.75`, `0.93`, and `1.08` respectively by epoch `200`.
+- The `r = 1` outcome fit is more stable: its average validation oracle `mu` MSE keeps improving until about epoch `130` before turning upward.
+- The minimax beta error does not attain its minimum at the same time as the oracle `mu` MSE. Across all four settings, the average beta MSE continues improving well past the best `mu` checkpoint and reaches its minimum around epoch `90` to `110`.
+- Even after the oracle `mu` MSE begins to worsen, the minimax beta error remains comparatively stable. That suggests the fixed empirical weights are smoothing out part of the nuisance-fitting deterioration, at least under the current hyper-parameters.
+
+Generated figure:
+
+- `examples/plm/figs/1.7/1.7.6_minimax_ablation_paths.png`

@@ -13,6 +13,7 @@ from simlab.estimators.plm_est import (
     PLMDMLEstimator,
     PLMDMLOracleTrackingEstimator,
     PLMMinimaxDebiasEstimator,
+    PLMMinimaxDebiasTrackingEstimator,
     PLMOracleAIPWEstimator,
     PLMValidationSelectedDMLEstimator,
 )
@@ -413,6 +414,64 @@ class PLMEstimatorTests(unittest.TestCase):
             1.0 / (np.sqrt(5) * np.log2(5)),
             places=6,
         )
+
+    def test_minimax_tracking_estimator_records_mu_and_beta_paths(self) -> None:
+        dgp = PartialLinearModelUniformNoiseDGP(
+            beta=0.5,
+            func_mu=zero_mu,
+            func_pi=linear_pi,
+            d=2,
+            sigma_u=0.2,
+            sigma_eps=0.1,
+        )
+        train_sample = dgp.sample(n=12, seed=515, oracle=True)
+        validation_sample = dgp.sample(n=8, seed=616, oracle=True)
+        augmented_oracle = dict(train_sample.oracle)
+        augmented_oracle.update(
+            {
+                "validation_x": validation_sample.observed["x"],
+                "validation_mu_x": validation_sample.oracle["mu_x"],
+            }
+        )
+        tracking_sample = SampledData(
+            observed=train_sample.observed,
+            oracle=augmented_oracle,
+        )
+        estimator = PLMMinimaxDebiasTrackingEstimator(
+            name="minimax-tracking",
+            hyper_parameters={
+                "L": 1,
+                "N": 4,
+                "lambda_mu": 1e-4,
+                "lambda_pi": 1e-4,
+                "niter": 4,
+                "lr": 1e-3,
+                "batch_size": 4,
+                "seed": 23,
+                "lambda_debias": 0.1,
+                "weight_bound": 2.0,
+                "niter_debias": 3,
+                "niter_adversary": 1,
+                "debias_lr": 5e-3,
+                "tracking_interval": 2,
+                "tracking_source": "validation",
+            },
+            d=2,
+            device="cpu",
+        )
+
+        result = estimator.fit(tracking_sample)
+
+        self.assertEqual(result.diagnostics["epoch_grid"], [0, 2, 4])
+        self.assertEqual(result.diagnostics["tracking_split"], "validation")
+        self.assertEqual(result.diagnostics["tracking_n"], 8)
+        self.assertEqual(result.diagnostics["tracking_interval"], 2)
+        self.assertEqual(len(result.diagnostics["mu_mse_path"]), 3)
+        self.assertEqual(len(result.diagnostics["beta_path"]), 3)
+        self.assertEqual(len(result.diagnostics["debias_weights"]), 6)
+        self.assertTrue(np.all(np.isfinite(result.diagnostics["mu_mse_path"])))
+        self.assertTrue(np.all(np.isfinite(result.diagnostics["beta_path"])))
+        self.assertTrue(np.all(np.isfinite(result.diagnostics["debias_weights"])))
 
 
 if __name__ == "__main__":

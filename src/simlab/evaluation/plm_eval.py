@@ -343,8 +343,11 @@ class PLMEvaluator(Evaluator):
             "epoch_grid",
             "mu_mse_path",
             "pi_mse_path",
+            "beta_path",
+            "beta_sq_error_path",
             "tracking_split",
             "tracking_n",
+            "tracking_interval",
             "tracking_paths",
             "validation_n",
             "validation_check_interval",
@@ -356,10 +359,16 @@ class PLMEvaluator(Evaluator):
             "best_validation_mu_loss",
             "best_validation_pi_loss",
             "used_validation_selection",
+            "debias_weights",
         )
         for key in diagnostic_keys:
             if key in diagnostics:
                 result_record[key] = deepcopy(diagnostics[key])
+        if "beta_path" in diagnostics and "beta_sq_error_path" not in result_record:
+            result_record["beta_sq_error_path"] = [
+                float((float(beta_value) - beta_true) ** 2)
+                for beta_value in diagnostics["beta_path"]
+            ]
         return result_record
 
     def _build_dgp(self, dgp_config: dict[str, Any], seed: int | None) -> Any:

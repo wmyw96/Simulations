@@ -132,6 +132,15 @@ def main() -> None:
         if key != "n"
     }
 
+    if _has_minimax_tracking_paths(results):
+        _plot_minimax_tracking_ablation(
+            display_exp_id=display_exp_id,
+            fig_dir=fig_dir,
+            evaluator=evaluator,
+            results=results,
+        )
+        return
+
     if storage_id.endswith("_tracking") and _has_dual_source_tracking_paths(results):
         _plot_validation_tracking_overlay_paths(
             display_exp_id=_tracking_base_display_id(storage_id=storage_id, display_exp_id=display_exp_id),
@@ -481,6 +490,114 @@ def _plot_validation_tracking_overlay_paths(
     plt.close(fig)
     print(f"Saved {output_path}")
     print(f"Saved {alias_path}")
+
+
+def _has_minimax_tracking_paths(results: dict[str, object]) -> bool:
+    """Return whether any estimator record stores minimax mu/beta tracking paths."""
+    return any(
+        "mu_mse_path" in estimator_record and "beta_path" in estimator_record
+        for trial in results.get("trial_results", [])
+        for estimator_record in trial.get("estimator_results", [])
+    )
+
+
+def _plot_minimax_tracking_ablation(
+    *,
+    display_exp_id: str,
+    fig_dir: Path,
+    evaluator,
+    results: dict[str, object],
+) -> None:
+    """Plot average oracle mu MSE and beta squared error paths for minimax ablation runs."""
+    import matplotlib.pyplot as plt
+
+    fixed_dgp_config = {
+        key: value
+        for key, value in evaluator.dgp_param_grid.items()
+        if key not in {"func_pi_name", "n"}
+    }
+    fixed_dgp_config["n"] = int(evaluator.dgp_param_grid["n"][0])
+    pi_specs = list(evaluator.dgp_param_grid["func_pi_name"])
+    colors = [
+        COLOR_BANK["myred"],
+        COLOR_BANK["myorange"],
+        COLOR_BANK["mygreen"],
+        COLOR_BANK["myblue"],
+        COLOR_BANK["mypurple"],
+        COLOR_BANK["myyellow"],
+        COLOR_BANK["mylightblue"],
+    ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.8), sharex=True)
+    left_axis, right_axis = axes
+
+    for func_pi_name, color in zip(pi_specs, colors, strict=False):
+        param_config = {
+            **fixed_dgp_config,
+            "func_pi_name": func_pi_name,
+        }
+        config_signature = evaluator._config_signature(param_config)
+        matching_pairs = [
+            (trial, estimator_record)
+            for trial in results["trial_results"]
+            if evaluator._config_signature(trial["dgp_config"]) == config_signature
+            for estimator_record in trial["estimator_results"]
+            if "mu_mse_path" in estimator_record and "beta_path" in estimator_record
+        ]
+        if not matching_pairs:
+            continue
+
+        epoch_grid = np.asarray(matching_pairs[0][1]["epoch_grid"], dtype=float)
+        mu_paths = np.asarray(
+            [estimator_record["mu_mse_path"] for _trial, estimator_record in matching_pairs],
+            dtype=float,
+        )
+        beta_sq_error_paths = np.asarray(
+            [
+                estimator_record.get(
+                    "beta_sq_error_path",
+                    [
+                        (float(beta_value) - float(trial["beta_true"])) ** 2
+                        for beta_value in estimator_record["beta_path"]
+                    ],
+                )
+                for trial, estimator_record in matching_pairs
+            ],
+            dtype=float,
+        )
+        r_label = func_pi_name.rsplit("_", maxsplit=1)[-1]
+        curve_label = rf"$r={r_label}$"
+        left_axis.plot(
+            epoch_grid,
+            mu_paths.mean(axis=0),
+            color=color,
+            linewidth=2.4,
+            label=curve_label,
+        )
+        right_axis.plot(
+            epoch_grid,
+            beta_sq_error_paths.mean(axis=0),
+            color=color,
+            linewidth=2.4,
+            label=curve_label,
+        )
+
+    left_axis.set_yscale("log")
+    right_axis.set_yscale("log")
+    left_axis.set_xlabel("Epoch")
+    right_axis.set_xlabel("Epoch")
+    left_axis.set_ylabel("Average oracle mu MSE")
+    right_axis.set_ylabel("Average beta squared error")
+    left_axis.set_title(f"{display_exp_id}: oracle mu MSE path")
+    right_axis.set_title(f"{display_exp_id}: beta error path")
+    left_axis.grid(alpha=0.18)
+    right_axis.grid(alpha=0.18)
+    right_axis.legend(loc="upper right", frameon=False)
+    fig.tight_layout()
+    output_path = fig_dir / f"{display_exp_id}_minimax_ablation_paths.png"
+    fig.savefig(output_path, dpi=220)
+    plt.close(fig)
+    print(f"Saved {output_path}")
 
 
 def _plot_family_14_nuisance_paths(
