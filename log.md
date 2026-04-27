@@ -448,3 +448,10 @@
 
 - Reworked the unified `1.7.2` MSE mean-curve legend layout so the beta-MSE and nuisance-MSE entries sit outside the plotting area in two grouped legends rather than covering the `mu` and `pi` curves.
 - Regenerated the `examples/plm/figs/1.7/1.7.2_unified_mse_mean_curve.png` figure with the new layout.
+
+
+## 2026-04-26 21:54:31 EDT
+
+- Added PLM experiment `1.7.3`, which keeps the fixed-coefficient family from `1.7.2` but moves the signal to the first coordinate, with `mu(x) = g_1(x_1)`, `pi_r(x) = g_r(x_1)`, and ambient dimension `d = 3`.
+- Implemented the new DGP function registry entries, evaluator builder, evaluator tests, and experiment-log section, then ran the full `40`-record `1.7.3` sweep and regenerated the associated `1.7.3` figures.
+- Extended the `1.7` visualization path so `1.7.3` also produces the unified mean-curve figure alongside the pi-complexity MSE, bias, and variance summaries.
