@@ -467,3 +467,9 @@
 
 - Added a small PLM preview script for the tanh-wrapped `1.7.4` family, visualizing `f_r(x) = g_r(tanh(x))` on `[-sqrt(5), sqrt(5)]` for `r in {1, 2, 4, 8}`.
 - Generated the preview figure and metadata under `examples/plm/figs/1.7/` so the transformed shape can be inspected before turning it into a new simulation setting.
+
+
+## 2026-04-27 06:08:41 EDT
+
+- Added PLM experiment `1.7.5`, which projects the tanh-wrapped alternating-sign family onto the fixed direction `w = (1, 1, 1) / sqrt(3)` in ambient dimension `d = 3`, with `mu(x) = f_{0.8}(w^T x)` and `pi_r(x) = f_r(w^T x)`.
+- Implemented the new DGP function registry entries, evaluator builder, visualization hook, evaluator tests, and experiment-log section, then ran the full `40`-record `1.7.5` sweep and regenerated the associated `1.7.5` figures.
