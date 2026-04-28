@@ -5331,6 +5331,7 @@ def build_evaluator_from_exp_id(
     n_trials: int,
     seed_offset: int = 0,
     device: str = "cpu",
+    train_size_semantics: str = "total",
     result_root: str | Path = DEFAULT_RESULT_ROOT,
 ) -> PLMEvaluator:
     """Build an evaluator from the experiment family encoded in exp_id."""
@@ -5342,10 +5343,12 @@ def build_evaluator_from_exp_id(
         if family not in EXPERIMENT_FAMILY_BUILDERS:
             raise ValueError(f"Unknown experiment family '{family}'.")
         builder = EXPERIMENT_FAMILY_BUILDERS[family]
-    return builder(
+    evaluator = builder(
         exp_id=storage_id,
         n_trials=n_trials,
         seed_offset=seed_offset,
         device=device,
         result_root=result_root,
     )
+    evaluator.train_size_semantics = evaluator._normalize_train_size_semantics(train_size_semantics)
+    return evaluator

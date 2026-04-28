@@ -57,6 +57,12 @@ DML_PI_LINESTYLES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Visualize PLM simulation results.")
     parser.add_argument("--exp_id", required=True, help="Experiment identifier, for example 1.1.2.")
+    parser.add_argument(
+        "--train_size_semantics",
+        default="total",
+        choices=("total", "per_split"),
+        help="Interpretation of dgp_config['n']: total train size or per-split size.",
+    )
     return parser.parse_args()
 
 
@@ -92,7 +98,11 @@ def main() -> None:
     args = parse_args()
     storage_id, display_exp_id = normalize_exp_id(args.exp_id)
     family_display_id = storage_id.split("_", 1)[0]
-    evaluator = build_evaluator_from_exp_id(exp_id=args.exp_id, n_trials=1)
+    evaluator = build_evaluator_from_exp_id(
+        exp_id=args.exp_id,
+        n_trials=1,
+        train_size_semantics=args.train_size_semantics,
+    )
     metric_specs = {
         "beta_hat_mse": {
             "label": "MSE of AIPW beta estimate",

@@ -1331,6 +1331,41 @@ class PLMEvaluatorTests(unittest.TestCase):
             self.assertIn("nuisance_error_corr", first_trial)
             self.assertIn("oracle_residual_corr", first_trial)
 
+    def test_per_split_train_size_semantics_uses_n_for_each_half(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_root = Path(temp_dir) / "simulation_results"
+            evaluator = build_evaluator_from_exp_id(
+                exp_id="1.1.2",
+                n_trials=1,
+                seed_offset=5,
+                device="cpu",
+                train_size_semantics="per_split",
+                result_root=result_root,
+            )
+            evaluator.dgp_param_grid["n"] = [16]
+            evaluator.dgp_param_grid["n_test"] = 32
+            dml_config = dict(evaluator.estimators[0]["method_config"])
+            dml_config["N"] = 8
+            dml_config["niter"] = 2
+            dml_config["batch_size"] = 8
+            dml_config["d"] = 1
+            evaluator.estimators[0]["method_config"] = dml_config
+            evaluator.estimators[0]["factory"] = lambda *, trial_seed=None, cfg=dict(dml_config): __import__(
+                "examples.plm.experiment_defs",
+                fromlist=["make_plm_dml_estimator"],
+            ).make_plm_dml_estimator({**cfg, "seed": trial_seed})
+            evaluator.estimators[0]["accepts_trial_seed"] = True
+
+            results = evaluator.run()
+            trial_record = results["trial_results"][0]
+
+            self.assertEqual(results["train_size_semantics"], "per_split")
+            self.assertEqual(trial_record["requested_train_n"], 16)
+            self.assertEqual(trial_record["train_n_total"], 32)
+            self.assertEqual(trial_record["train_n_d1"], 16)
+            self.assertEqual(trial_record["train_n_d2"], 16)
+            self.assertEqual(trial_record["train_size_semantics"], "per_split")
+
     def test_resume_updates_n_trials_metadata_and_reuses_new_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result_root = Path(temp_dir) / "simulation_results"

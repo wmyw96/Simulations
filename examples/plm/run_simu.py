@@ -20,6 +20,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ntrials", required=True, type=int, help="Number of trials to run.")
     parser.add_argument("--seed_offset", default=0, type=int, help="Seed offset for reproducibility.")
     parser.add_argument("--device", default="cpu", help="PyTorch device string.")
+    parser.add_argument(
+        "--train_size_semantics",
+        default="total",
+        choices=("total", "per_split"),
+        help="Interpretation of dgp_config['n']: total train size or per-split size.",
+    )
     return parser.parse_args()
 
 
@@ -30,6 +36,7 @@ def main() -> None:
         n_trials=args.ntrials,
         seed_offset=args.seed_offset,
         device=args.device,
+        train_size_semantics=args.train_size_semantics,
     )
     evaluator.run()
     print(f"Saved simulation results to {evaluator.result_path}")

@@ -32,6 +32,7 @@ class PLMEvaluator(Evaluator):
         estimators: list[dict[str, Any]],
         n_trials: int = 1,
         seed_offset: int = 0,
+        train_size_semantics: str = "total",
         result_root: str | Path = "simulation_results",
     ):
         super().__init__(
@@ -50,6 +51,7 @@ class PLMEvaluator(Evaluator):
         self.result_path = self.result_root / exp_name / f"{exp_id}.json"
         self.dgp_param_grid = deepcopy(dgp_param_grid)
         self.estimators = [self._normalize_estimator_spec(spec) for spec in estimators]
+        self.train_size_semantics = self._normalize_train_size_semantics(train_size_semantics)
         self.results: dict[str, Any] | None = None
 
     def __run__(self) -> dict[str, Any]:
@@ -166,8 +168,11 @@ class PLMEvaluator(Evaluator):
         train_seed = trial_seed + 1
         test_seed = trial_seed + 2
         validation_seed = trial_seed + 3
-        train_n = int(dgp_config["n"])
+        requested_train_n = int(dgp_config["n"])
+        train_n = self._resolve_train_sample_size(requested_train_n)
         test_n = int(dgp_config["n_test"])
+        train_n_d1 = train_n // 2
+        train_n_d2 = train_n - train_n_d1
 
         data_oracle = dgp.sample(n=train_n, seed=train_seed, oracle=True)
         data_observed = SampledData(observed=deepcopy(data_oracle.observed))
@@ -175,6 +180,7 @@ class PLMEvaluator(Evaluator):
         beta_true = float(dgp.true_parameter())
         validation_data = self._maybe_sample_validation_data(
             dgp=dgp,
+            requested_train_n=requested_train_n,
             train_n=train_n,
             validation_seed=validation_seed,
         )
@@ -220,6 +226,11 @@ class PLMEvaluator(Evaluator):
             "trial_id": trial_id,
             "trial_seed": trial_seed,
             "train_seed": train_seed,
+            "requested_train_n": requested_train_n,
+            "train_n_total": train_n,
+            "train_n_d1": train_n_d1,
+            "train_n_d2": train_n_d2,
+            "train_size_semantics": self.train_size_semantics,
             "test_seed": test_seed,
             "validation_seed": validation_seed if validation_data is not None else None,
             "estimator_results": estimator_results,
@@ -228,6 +239,7 @@ class PLMEvaluator(Evaluator):
     def _maybe_sample_validation_data(
         self,
         dgp: Any,
+        requested_train_n: int,
         train_n: int,
         validation_seed: int,
     ) -> SampledData | None:
@@ -237,10 +249,10 @@ class PLMEvaluator(Evaluator):
         for spec in self.estimators:
             method_config = spec["method_config"]
             if method_config.get("tracking_source") == "validation":
-                requested_sizes.add(int(method_config.get("validation_n", train_n)))
+                requested_sizes.add(int(method_config.get("validation_n", requested_train_n)))
                 requires_oracle_validation = True
             if spec["accepts_validation_data"]:
-                requested_sizes.add(int(method_config.get("validation_n", max(1, train_n // 3))))
+                requested_sizes.add(int(method_config.get("validation_n", max(1, requested_train_n // 3))))
         if not requested_sizes:
             return None
         if len(requested_sizes) != 1:
@@ -398,6 +410,7 @@ class PLMEvaluator(Evaluator):
             "dgp_param_grid": deepcopy(self.dgp_param_grid),
             "n_trials": self.n_trials,
             "seed_offset": self.seed_offset,
+            "train_size_semantics": self.train_size_semantics,
             "estimator_specs": self._serializable_estimator_specs(),
             "trial_results": [],
         }
@@ -429,6 +442,10 @@ class PLMEvaluator(Evaluator):
 
         if results.get("seed_offset") != self.seed_offset:
             results["seed_offset"] = self.seed_offset
+            changed = True
+
+        if results.get("train_size_semantics", "total") != self.train_size_semantics:
+            results["train_size_semantics"] = self.train_size_semantics
             changed = True
 
         return changed
@@ -528,9 +545,13 @@ class PLMEvaluator(Evaluator):
             "dgp_generator_name": getattr(self.dgp_generator, "__name__", "dgp_generator"),
             "dgp_param_grid": deepcopy(self.dgp_param_grid),
             "seed_offset": self.seed_offset,
+            "train_size_semantics": self.train_size_semantics,
         }
         for key, expected_value in expected.items():
-            observed_value = results.get(key)
+            if key == "train_size_semantics":
+                observed_value = results.get(key, "total")
+            else:
+                observed_value = results.get(key)
             if observed_value != expected_value:
                 raise ValueError(
                     f"Existing result file '{self.result_path}' does not match the requested "
@@ -561,6 +582,22 @@ class PLMEvaluator(Evaluator):
                 item["accepts_validation_data"] = True
             normalized.append(item)
         return normalized
+
+    @staticmethod
+    def _normalize_train_size_semantics(train_size_semantics: str) -> str:
+        """Validate the interpretation of dgp_config['n']."""
+        normalized = str(train_size_semantics).strip().lower()
+        if normalized not in {"total", "per_split"}:
+            raise ValueError("train_size_semantics must be either 'total' or 'per_split'.")
+        return normalized
+
+    def _resolve_train_sample_size(self, requested_train_n: int) -> int:
+        """Return the total training sample size implied by the configured n semantics."""
+        if requested_train_n <= 0:
+            raise ValueError("dgp_config['n'] must be positive.")
+        if self.train_size_semantics == "total":
+            return requested_train_n
+        return 2 * requested_train_n
 
 
 def _as_column(values: np.ndarray, label: str) -> np.ndarray:
