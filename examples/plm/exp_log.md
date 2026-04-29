@@ -3782,3 +3782,133 @@ Generated figures:
 - `examples/plm/figs/1.7/1.7.9_unified_mse_mean_curve.png`
 - `examples/plm/figs/1.7/1.7.9_nuisance_validation_overlay_paths.png`
 - `examples/plm/figs/1.7/1.7.9_minimax_ablation_paths.png`
+
+## 1.7.10
+
+Experiment `1.7.10`, stored across the simulation artifacts `1.7_10`, `1.7_10_tracking`, and `1.7_10_minimax`.
+
+### Goal
+
+This experiment revisits the original `1.7.5` projected tanh-wrapped alternating-sign family, but now under the new per-split sample-size language and with a larger Monte Carlo budget:
+
+- same data-generating family as `1.7.5`,
+- `30` trials for each treatment-regression candidate,
+- per-split training size `n = |D1| = |D2| = 1024`.
+
+The goal is to see how the learned estimators and the companion diagnostics stabilize once we keep the original total sample size of `2048` but average over more trials.
+
+### Setting and design
+
+Specific data-generating setting:
+
+- DGP class: `PartialLinearModelUniformNoiseDGP`
+- Covariate dimension: `d = 3`
+- Fixed projection:
+  - `w = (1, 1, 1) / sqrt(3)`
+- Tanh-wrapped alternating-sign family:
+  - `mu(x) = f_{0.8}(w^\top x)`
+  - `pi_1(x) = f_1(w^\top x)`
+  - `pi_2(x) = f_2(w^\top x)`
+  - `pi_4(x) = f_4(w^\top x)`
+  - `pi_8(x) = f_8(w^\top x)`
+- Trial-level target coefficient: `beta ~ Unif[-0.5, 0.5]`
+- Treatment noise scale: `sigma_u = sqrt(3)` so that `Var(u) = 1`
+- Outcome noise scale: `sigma_eps = sqrt(3)` so that `Var(eps) = 1`
+- Per-split training size: `n = |D1| = |D2| = 1024`
+- Total training sample size: `|D1| + |D2| = 2048`
+- Test sample size: `n_test = 10000`
+- Number of trials: `30` per treatment-regression candidate
+
+Method design:
+
+- Final estimator comparison:
+  - validation-selected Neural DML,
+  - standard Neural DML without model selection,
+  - paper minimax-debias estimator,
+  - Oracle AIPW
+- Shared neural-network hyper-parameters:
+  - depth `L = 3`
+  - width `N = 512`
+  - `lambda_mu = lambda_pi = 2e-5`
+  - learning rate `lr = 1e-3`
+  - batch size `2048`
+  - training epochs `200`
+- Validation-selected DML uses:
+  - validation sample size `341 = floor(1024 / 3)`
+  - model-selection checkpoints every `10` epochs
+- Companion diagnostics:
+  - `1.7_10_tracking` records the averaged validation oracle nuisance-MSE paths with oracle validation size `1024`
+  - `1.7_10_minimax` records the minimax beta-error path using the final debiasing weights and oracle validation size `1024`
+
+### Results
+
+Average beta MSE over `30` trials:
+
+| pi family | Oracle AIPW beta MSE | Validation-selected DML beta MSE | Standard DML beta MSE | Minimax debias beta MSE |
+| --- | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.000947 | 0.003279 | 0.017843 | 0.001659 |
+| `r = 2` | 0.000951 | 0.003930 | 0.007039 | 0.001975 |
+| `r = 4` | 0.000954 | 0.004471 | 0.010418 | 0.001619 |
+| `r = 8` | 0.000956 | 0.004937 | 0.009625 | 0.001878 |
+
+Nuisance MSEs for the two Neural DML variants:
+
+| pi family | Selected DML mu MSE | Selected DML pi MSE | Standard DML mu MSE | Standard DML pi MSE |
+| --- | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.112834 | 0.129174 | 0.425869 | 0.364511 |
+| `r = 2` | 0.109562 | 0.226689 | 0.303149 | 0.525602 |
+| `r = 4` | 0.107492 | 0.292855 | 0.448351 | 0.577284 |
+| `r = 8` | 0.104917 | 0.322275 | 0.404835 | 0.541774 |
+
+Bias-variance decomposition of beta estimation error:
+
+| pi family | Selected DML squared bias | Selected DML variance | Standard DML squared bias | Standard DML variance | Minimax squared bias | Minimax variance |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.001855 | 0.001423 | 0.001018 | 0.016825 | 0.000129 | 0.001530 |
+| `r = 2` | 0.002704 | 0.001225 | 0.000382 | 0.006657 | 0.000547 | 0.001427 |
+| `r = 4` | 0.003385 | 0.001086 | 0.000029 | 0.010389 | 0.000525 | 0.001094 |
+| `r = 8` | 0.003702 | 0.001235 | 0.000118 | 0.009507 | 0.000775 | 0.001103 |
+
+Validation-selection diagnostics for Neural DML:
+
+| pi family | Mean selected mu epoch | Mean selected pi epoch |
+| --- | ---: | ---: |
+| `r = 1` | 35.00 | 35.67 |
+| `r = 2` | 34.33 | 43.67 |
+| `r = 4` | 33.67 | 42.33 |
+| `r = 8` | 34.00 | 36.00 |
+
+DML nuisance-path summary from `1.7_10_tracking`:
+
+| pi family | mu MSE at epoch 0 | Minimum average mu MSE | Epoch of minimum mu MSE | pi MSE at epoch 0 | Minimum average pi MSE | Epoch of minimum pi MSE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.479424 | 0.104572 | 42 | 0.441043 | 0.122864 | 34 |
+| `r = 2` | 0.479424 | 0.103293 | 42 | 0.403282 | 0.221405 | 35 |
+| `r = 4` | 0.479424 | 0.101964 | 31 | 0.395409 | 0.283445 | 40 |
+| `r = 8` | 0.479424 | 0.100966 | 38 | 0.395198 | 0.312737 | 40 |
+
+Minimax ablation summary from `1.7_10_minimax`:
+
+| pi family | Minimum average mu MSE | Epoch of minimum mu MSE | Minimum average beta MSE | Epoch of minimum beta MSE | Beta MSE at epoch 200 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `r = 1` | 0.106271 | 40 | 0.001615 | 90 | 0.001659 |
+| `r = 2` | 0.104923 | 40 | 0.001656 | 90 | 0.001975 |
+| `r = 4` | 0.102890 | 40 | 0.001619 | 200 | 0.001619 |
+| `r = 8` | 0.101406 | 40 | 0.001789 | 90 | 0.001878 |
+
+Main observations:
+
+- Relative to the larger-sample per-split setting `1.7.7`, shrinking the per-split sample size from `2048` to `1024` makes every learned method worse, but the qualitative ordering remains stable.
+- Minimax is the best learned estimator across all four `r` values in this smaller-sample regime, with beta MSE between about `1.62e-3` and `1.98e-3`.
+- Validation-selected DML clearly improves nuisance estimation over standard DML, but its beta error is bias-dominated: the squared bias is around `1.86e-3` to `3.70e-3`, much larger than the minimax bias in every regime.
+- Standard DML remains variance-dominated. Its outcome and treatment nuisance fits are substantially noisier, and its beta MSE stays well above minimax for all four `r` values.
+- The DML nuisance tracker shows that the validation oracle `mu` path bottoms out around epochs `31` to `42`, while the minimax beta path prefers later checkpoints near epoch `90` in three of the four settings.
+
+Generated figures:
+
+- `examples/plm/figs/1.7/1.7.10_pi_complexity_mean_mse_comparison.png`
+- `examples/plm/figs/1.7/1.7.10_pi_complexity_beta_bias_sq.png`
+- `examples/plm/figs/1.7/1.7.10_pi_complexity_beta_variance.png`
+- `examples/plm/figs/1.7/1.7.10_unified_mse_mean_curve.png`
+- `examples/plm/figs/1.7/1.7.10_nuisance_validation_overlay_paths.png`
+- `examples/plm/figs/1.7/1.7.10_minimax_ablation_paths.png`
