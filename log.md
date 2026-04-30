@@ -543,3 +543,8 @@
 
 - Restyled the `1.7.10` minimax ablation figure to use Times New Roman, no subplot titles, an `8x4` layout, tighter export settings, and the requested norm-squared y-axis labels for the nuisance and beta paths.
 - Regenerated `examples/plm/figs/1.7/1.7.10_minimax_ablation_paths.png` so the saved figure matches the updated presentation requirements.
+
+## 2026-04-29 20:19:16 EDT
+
+- Updated the `1.7.10` minimax ablation export so the restyled figure is saved as both PNG and PDF.
+- Regenerated `examples/plm/figs/1.7/1.7.10_minimax_ablation_paths.pdf` and added the new PDF artifact to the generated-figures list in `examples/plm/exp_log.md`.

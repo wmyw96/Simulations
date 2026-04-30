@@ -3913,3 +3913,4 @@ Generated figures:
 - `examples/plm/figs/1.7/1.7.10_valid_select_vs_minimax_beta_mse_hist.pdf`
 - `examples/plm/figs/1.7/1.7.10_nuisance_validation_overlay_paths.png`
 - `examples/plm/figs/1.7/1.7.10_minimax_ablation_paths.png`
+- `examples/plm/figs/1.7/1.7.10_minimax_ablation_paths.pdf`

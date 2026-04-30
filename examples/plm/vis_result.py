@@ -620,8 +620,13 @@ def _plot_minimax_tracking_ablation(
         if display_exp_id == "1.7.10":
             save_kwargs.update({"bbox_inches": "tight", "pad_inches": 0.02})
         fig.savefig(output_path, **save_kwargs)
+        if display_exp_id == "1.7.10":
+            pdf_path = fig_dir / f"{display_exp_id}_minimax_ablation_paths.pdf"
+            fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0.02)
         plt.close(fig)
         print(f"Saved {output_path}")
+        if display_exp_id == "1.7.10":
+            print(f"Saved {pdf_path}")
 
 
 def _plot_family_14_nuisance_paths(
